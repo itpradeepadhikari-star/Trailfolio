@@ -32,8 +32,26 @@ export function StartTrekModal({ profile, onClose, onCreated }: StartTrekModalPr
   const [photos, setPhotos] = useState<string[]>([]);
   const [showCamera, setShowCamera] = useState(false);
   const [gpsLoading, setGpsLoading] = useState(false);
+  const [showManualCoords, setShowManualCoords] = useState(false);
+  const [manualLat, setManualLat] = useState('');
+  const [manualLng, setManualLng] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const handleApplyManualCoords = () => {
+    const lat = Number(manualLat);
+    const lng = Number(manualLng);
+    if (!Number.isFinite(lat) || lat < -90 || lat > 90 || !Number.isFinite(lng) || lng < -180 || lng > 180) {
+      setError('Enter valid latitude (-90 to 90) and longitude (-180 to 180).');
+      return;
+    }
+    setError(null);
+    setCoords({ lat: Number(lat.toFixed(6)), lng: Number(lng.toFixed(6)) });
+    if (!startLocationName.trim()) {
+      setStartLocationName('Manual Start Pin');
+    }
+    setShowManualCoords(false);
+  };
 
   const handleUseGps = () => {
     if (!navigator.geolocation) {
@@ -354,7 +372,42 @@ export function StartTrekModal({ profile, onClose, onCreated }: StartTrekModalPr
                 <Compass className="w-3.5 h-3.5 text-[#4F46E5]" />
                 {coords ? formatCoords(coords.lat, coords.lng) : 'No start coordinates pinned yet'}
               </span>
+              <button
+                type="button"
+                onClick={() => setShowManualCoords((prev) => !prev)}
+                className="font-sans font-medium text-[#4F46E5] hover:underline cursor-pointer"
+              >
+                {showManualCoords ? 'Hide Coords' : 'Enter Lat / Lng'}
+              </button>
             </div>
+
+            {showManualCoords && (
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 p-3 rounded-xl bg-[#F6F7FB] border border-[#E2E8F0]">
+                <input
+                  type="number"
+                  step="any"
+                  value={manualLat}
+                  onChange={(e) => setManualLat(e.target.value)}
+                  placeholder="Lat (e.g. 28.5300)"
+                  className="px-3 min-h-[40px] text-base sm:text-xs font-mono border border-[#E2E8F0] rounded-lg bg-white focus:outline-none focus:border-[#4F46E5]"
+                />
+                <input
+                  type="number"
+                  step="any"
+                  value={manualLng}
+                  onChange={(e) => setManualLng(e.target.value)}
+                  placeholder="Lng (e.g. 83.9900)"
+                  className="px-3 min-h-[40px] text-base sm:text-xs font-mono border border-[#E2E8F0] rounded-lg bg-white focus:outline-none focus:border-[#4F46E5]"
+                />
+                <button
+                  type="button"
+                  onClick={handleApplyManualCoords}
+                  className="px-3 min-h-[40px] text-xs font-medium text-white bg-[#4F46E5] hover:bg-[#4338CA] rounded-lg cursor-pointer"
+                >
+                  Apply Pin
+                </button>
+              </div>
+            )}
 
             {error && (
               <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-xs text-red-800">

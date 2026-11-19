@@ -1,4 +1,4 @@
-import { useCallback, useContext, useEffect, useState } from 'react';
+import { useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import {
   AdvancedMarker,
   APILoadingStatus,
@@ -10,7 +10,8 @@ import {
   useApiLoadingStatus,
   useMap,
 } from '@vis.gl/react-google-maps';
-import { Compass, MapPin } from 'lucide-react';
+import { Compass, MapPin, WifiOff } from 'lucide-react';
+import { useOnlineStatus } from '../../hooks/usePWAInstall';
 import { formatCoords, formatElevation, formatTimestampTime } from '../../lib/geo';
 import type { LatLngLiteral, Waypoint } from '../../types/trail';
 
@@ -118,21 +119,244 @@ const CATEGORY_LABELS: Record<string, string> = {
   finish: 'Final Destination',
 };
 
+function OfflineRouteCanvas({
+  waypoints,
+  draftPin = null,
+  draftPinLabel = 'New Pin',
+  selectedWaypointId = null,
+  onSelectWaypoint,
+  heightClassName = 'h-[420px] sm:h-[460px]',
+  onPhotoClick,
+  offlineReason,
+}: {
+  waypoints: Waypoint[];
+  draftPin?: LatLngLiteral | null;
+  draftPinLabel?: string;
+  selectedWaypointId?: string | null;
+  onSelectWaypoint?: (wp: Waypoint | null) => void;
+  heightClassName?: string;
+  onPhotoClick?: (photoUrl: string, waypoint: Waypoint) => void;
+  offlineReason: string;
+}) {
+  const [localSelectedId, setLocalSelectedId] = useState<string | null>(null);
+  const effectiveSelectedId = selectedWaypointId ?? localSelectedId;
+  const selectedWp = waypoints.find((w) => w.id === effectiveSelectedId) || null;
+
+  const projected = useMemo(() => {
+    const allCoords: LatLngLiteral[] = [
+      ...waypoints.map((w) => ({ lat: w.lat, lng: w.lng })),
+      ...(draftPin ? [draftPin] : []),
+    ];
+    if (allCoords.length === 0) {
+      return {
+        wpPositions: [] as { wp: Waypoint; x: number; y: number; index: number }[],
+        draftPos: null as { x: number; y: number } | null,
+        polylinePoints: '',
+      };
+    }
+
+    const lats = allCoords.map((c) => c.lat);
+    const lngs = allCoords.map((c) => c.lng);
+    const minLat = Math.min(...lats);
+    const maxLat = Math.max(...lats);
+    const minLng = Math.min(...lngs);
+    const maxLng = Math.max(...lngs);
+    const latSpan = Math.max(maxLat - minLat, 0.004);
+    const lngSpan = Math.max(maxLng - minLng, 0.004);
+
+    const project = (lat: number, lng: number) => {
+      const pad = 16;
+      const x =
+        allCoords.length === 1
+          ? 50
+          : pad + ((lng - minLng) / lngSpan) * (100 - pad * 2);
+      const y =
+        allCoords.length === 1
+          ? 50
+          : pad + (1 - (lat - minLat) / latSpan) * (100 - pad * 2);
+      return { x, y };
+    };
+
+    const wpPositions = waypoints.map((wp, index) => ({
+      wp,
+      index,
+      ...project(wp.lat, wp.lng),
+    }));
+    const draftPos = draftPin ? project(draftPin.lat, draftPin.lng) : null;
+    const polylinePoints = wpPositions.map((p) => `${p.x},${p.y}`).join(' ');
+
+    return { wpPositions, draftPos, polylinePoints };
+  }, [waypoints, draftPin]);
+
+  return (
+    <div
+      className={`relative w-full ${heightClassName} rounded-2xl overflow-hidden border border-[#C7D2FE] bg-gradient-to-br from-[#F8FAFC] via-[#EEF2FF] to-[#E0E7FF] flex flex-col justify-between p-4`}
+    >
+      {/* Top status bar */}
+      <div className="relative z-10 flex flex-wrap items-center justify-between gap-2">
+        <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/95 border border-[#E2E8F0] text-xs font-medium text-[#0F172A] shadow-xs">
+          <WifiOff className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+          <span>{offlineReason}</span>
+        </div>
+        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/90 border border-[#E2E8F0] text-[11px] font-mono text-[#475569]">
+          <Compass className="w-3.5 h-3.5 text-[#4F46E5]" />
+          <span>N ↑ · {waypoints.length} pts</span>
+        </div>
+      </div>
+
+      {/* Topographic grid + SVG polyline */}
+      {projected.wpPositions.length === 0 && !projected.draftPos ? (
+        <div className="flex-1 flex flex-col items-center justify-center text-center px-4">
+          <MapPin className="w-8 h-8 text-[#4F46E5] mb-2" />
+          <p className="text-sm font-medium text-[#0F172A]">Offline Route Canvas Ready</p>
+          <p className="text-xs text-[#475569] mt-1 max-w-xs">
+            Tap Current GPS (works via phone satellites without internet) or enter coordinates to plot
+            your route locally.
+          </p>
+        </div>
+      ) : (
+        <div className="relative flex-1 my-2 min-h-0">
+          <svg
+            viewBox="0 0 100 100"
+            preserveAspectRatio="none"
+            className="absolute inset-0 w-full h-full opacity-35 pointer-events-none"
+          >
+            <defs>
+              <pattern id="offlineGrid" width="12.5" height="12.5" patternUnits="userSpaceOnUse">
+                <path
+                  d="M 12.5 0 L 0 0 0 12.5"
+                  fill="none"
+                  stroke="#94A3B8"
+                  strokeWidth="0.3"
+                />
+              </pattern>
+            </defs>
+            <rect width="100" height="100" fill="url(#offlineGrid)" />
+            {projected.wpPositions.length >= 2 && (
+              <polyline
+                fill="none"
+                stroke="#4F46E5"
+                strokeWidth="1.2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                points={projected.polylinePoints}
+              />
+            )}
+          </svg>
+
+          {/* Interactive HTML markers layered over normalized coords */}
+          {projected.wpPositions.map(({ wp, x, y, index }) => {
+            const isStart = index === 0;
+            const isEnd = projected.wpPositions.length > 1 && index === projected.wpPositions.length - 1;
+            const isSelected = selectedWp?.id === wp.id;
+            return (
+              <button
+                key={wp.id}
+                type="button"
+                title={wp.name}
+                onClick={() => {
+                  setLocalSelectedId(wp.id);
+                  onSelectWaypoint?.(wp);
+                }}
+                style={{ left: `${x}%`, top: `${y}%` }}
+                className={`absolute -translate-x-1/2 -translate-y-1/2 min-w-7 h-7 px-1.5 rounded-full border-2 shadow-md flex items-center justify-center text-xs font-mono font-semibold tabular-nums cursor-pointer trail-transition ${
+                  isSelected
+                    ? 'bg-[#6D28D9] text-white border-white scale-115 z-20'
+                    : isStart
+                      ? 'bg-[#4F46E5] text-white border-white z-10'
+                      : isEnd
+                        ? 'bg-[#2563EB] text-white border-white z-10'
+                        : 'bg-white text-[#0F172A] border-[#4F46E5] z-10'
+                }`}
+              >
+                {isStart ? 'S' : index + 1}
+              </button>
+            );
+          })}
+
+          {projected.draftPos && (
+            <div
+              style={{ left: `${projected.draftPos.x}%`, top: `${projected.draftPos.y}%` }}
+              className="absolute -translate-x-1/2 -translate-y-full z-30 flex flex-col items-center pointer-events-none"
+            >
+              <div className="px-2 py-0.5 rounded-md bg-[#2563EB] text-white text-[11px] font-medium shadow-md flex items-center gap-1 whitespace-nowrap">
+                <MapPin className="w-3 h-3" />
+                <span>{draftPinLabel}</span>
+              </div>
+              <div className="w-2.5 h-2.5 rounded-full bg-[#2563EB] border-2 border-white shadow mt-0.5" />
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Selected waypoint inspector or offline hint */}
+      {selectedWp ? (
+        <div className="relative z-10 bg-white/95 backdrop-blur-sm border border-[#E2E8F0] rounded-xl p-3 flex items-center justify-between gap-3 shadow-sm">
+          <div className="min-w-0">
+            <p className="text-[11px] font-mono text-[#475569] truncate">
+              #{selectedWp.orderIndex + 1} · {CATEGORY_LABELS[selectedWp.category] || selectedWp.category}
+              {selectedWp.elevationM !== null ? ` · ${formatElevation(selectedWp.elevationM)}` : ''}
+            </p>
+            <p className="text-sm font-semibold text-[#0F172A] truncate">{selectedWp.name}</p>
+            <p className="text-[11px] font-mono text-[#475569] tabular-nums">
+              {formatCoords(selectedWp.lat, selectedWp.lng)}
+            </p>
+          </div>
+          {selectedWp.photos && selectedWp.photos.length > 0 && (
+            <button
+              type="button"
+              onClick={() => onPhotoClick?.(selectedWp.photos[0], selectedWp)}
+              className="w-14 h-14 rounded-lg overflow-hidden border border-[#E2E8F0] shrink-0 cursor-pointer"
+            >
+              <img
+                src={selectedWp.photos[0]}
+                alt={selectedWp.name}
+                referrerPolicy="no-referrer"
+                className="w-full h-full object-cover"
+              />
+            </button>
+          )}
+        </div>
+      ) : (
+        <div className="relative z-10 bg-white/90 border border-[#E2E8F0] rounded-xl px-3 py-2 text-[11px] text-[#475569]">
+          Offline route plot active. Interactive satellite &amp; terrain tiles resume automatically when internet is available.
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function TrailMap(props: TrailMapProps) {
   const apiCtx = useContext(APIProviderContext);
+  const isOnline = useOnlineStatus();
+
+  if (!isOnline) {
+    return (
+      <OfflineRouteCanvas
+        waypoints={props.waypoints}
+        draftPin={props.draftPin}
+        draftPinLabel={props.draftPinLabel}
+        selectedWaypointId={props.selectedWaypointId}
+        onSelectWaypoint={props.onSelectWaypoint}
+        heightClassName={props.heightClassName}
+        onPhotoClick={props.onPhotoClick}
+        offlineReason="Offline Route View"
+      />
+    );
+  }
+
   if (!apiCtx) {
     return (
-      <div
-        className={`${props.heightClassName || 'h-[420px] sm:h-[460px]'} w-full bg-[#EEF1FA] border border-[#E2E8F0] rounded-2xl flex flex-col items-center justify-center p-6 text-center`}
-      >
-        <Compass className="w-8 h-8 text-[#475569] mb-3" />
-        <p className="text-sm font-medium text-[#0F172A] mb-1">
-          Map view requires a Google Maps API key
-        </p>
-        <p className="text-xs text-[#475569] max-w-sm">
-          {props.waypoints.length} waypoints logged with coordinates.
-        </p>
-      </div>
+      <OfflineRouteCanvas
+        waypoints={props.waypoints}
+        draftPin={props.draftPin}
+        draftPinLabel={props.draftPinLabel}
+        selectedWaypointId={props.selectedWaypointId}
+        onSelectWaypoint={props.onSelectWaypoint}
+        heightClassName={props.heightClassName}
+        onPhotoClick={props.onPhotoClick}
+        offlineReason="Offline Route Plot"
+      />
     );
   }
   return <TrailMapInner {...props} />;
@@ -184,17 +408,16 @@ function TrailMapInner({
 
   if (apiStatus === APILoadingStatus.FAILED || apiStatus === APILoadingStatus.AUTH_FAILURE) {
     return (
-      <div
-        className={`${heightClassName} w-full bg-[#EEF1FA] border border-[#E2E8F0] rounded-2xl flex flex-col items-center justify-center p-6 text-center`}
-      >
-        <Compass className="w-8 h-8 text-[#475569] mb-3" />
-        <p className="text-sm font-medium text-[#0F172A] mb-1">
-          Interactive map unavailable
-        </p>
-        <p className="text-xs text-[#475569] max-w-sm">
-          Coordinates and route logs are still preserved ({waypoints.length} waypoints recorded).
-        </p>
-      </div>
+      <OfflineRouteCanvas
+        waypoints={waypoints}
+        draftPin={draftPin}
+        draftPinLabel={draftPinLabel}
+        selectedWaypointId={selectedWaypointId}
+        onSelectWaypoint={onSelectWaypoint}
+        heightClassName={heightClassName}
+        onPhotoClick={onPhotoClick}
+        offlineReason="Route Plot (Map Tiles Offline)"
+      />
     );
   }
 

@@ -1,6 +1,7 @@
 import { useContext, useEffect, useRef, useState } from 'react';
 import { APIProviderContext, useMapsLibrary } from '@vis.gl/react-google-maps';
-import { MapPin, Search, X } from 'lucide-react';
+import { MapPin, Search, WifiOff, X } from 'lucide-react';
+import { useOnlineStatus } from '../../hooks/usePWAInstall';
 import type { LatLngLiteral } from '../../types/trail';
 
 export interface SelectedPlaceResult {
@@ -27,6 +28,19 @@ function isQuotaError(err: unknown): boolean {
 
 export function PlaceSearchBox(props: PlaceSearchBoxProps) {
   const apiCtx = useContext(APIProviderContext);
+  const isOnline = useOnlineStatus();
+
+  if (!isOnline) {
+    return (
+      <div className={props.className || ''}>
+        <div className="w-full min-h-[44px] px-3.5 py-2.5 text-xs bg-[#F6F7FB] border border-[#E2E8F0] rounded-xl text-[#475569] flex items-center gap-2">
+          <WifiOff className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+          <span>Offline — place search paused. Use GPS satellites or manual coordinates below.</span>
+        </div>
+      </div>
+    );
+  }
+
   if (!apiCtx) {
     return (
       <div className={props.className || ''}>

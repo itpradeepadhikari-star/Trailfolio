@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { Download, Smartphone, WifiOff, X } from 'lucide-react';
-import { useOnlineStatus, usePWAInstall } from '../hooks/usePWAInstall';
+import { CheckCircle2, CloudUpload, Download, Smartphone, WifiOff, X } from 'lucide-react';
+import { usePWAInstall } from '../hooks/usePWAInstall';
+import { useSyncStatus } from '../lib/syncState';
 
 interface PWAInstallButtonProps {
   variant?: 'header' | 'footer';
@@ -132,14 +133,47 @@ export function PWAInstallButton({ variant = 'header' }: PWAInstallButtonProps) 
 }
 
 export function OfflineIndicator() {
-  const isOnline = useOnlineStatus();
+  const { phase, pendingOps, hasPendingSnapshotWrites } = useSyncStatus();
 
-  if (isOnline) return null;
+  if (phase === 'online') {
+    return null;
+  }
+
+  const queuedCount = pendingOps > 0 ? pendingOps : hasPendingSnapshotWrites ? 1 : 0;
+
+  if (phase === 'offline') {
+    return (
+      <div className="fixed bottom-16 md:bottom-4 left-4 right-4 sm:right-auto z-50 flex items-center gap-2.5 rounded-xl bg-[#0F172A] text-white border border-[#334155] px-3.5 py-2.5 text-xs font-medium shadow-xl">
+        <WifiOff className="w-4 h-4 text-amber-400 shrink-0" />
+        <div className="min-w-0">
+          <p className="leading-snug">
+            Offline Mode — Logging locally on device
+            {queuedCount > 0 ? ` (${queuedCount} queued)` : ''}
+          </p>
+          <p className="text-[11px] text-slate-300 font-normal">
+            Auto-syncs to cloud as soon as internet returns.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (phase === 'syncing') {
+    return (
+      <div className="fixed bottom-16 md:bottom-4 left-4 right-4 sm:right-auto z-50 flex items-center gap-2.5 rounded-xl bg-[#4F46E5] text-white border border-[#6366F1] px-3.5 py-2.5 text-xs font-medium shadow-xl">
+        <CloudUpload className="w-4 h-4 animate-pulse shrink-0" />
+        <span>
+          Back online — Syncing offline logs to cloud
+          {queuedCount > 0 ? ` (${queuedCount})` : '...'}
+        </span>
+      </div>
+    );
+  }
 
   return (
-    <div className="fixed bottom-20 md:bottom-4 left-4 z-50 flex items-center gap-2 rounded-xl bg-[#0F172A] text-white border border-[#334155] px-3.5 py-2 text-xs font-medium shadow-lg">
-      <WifiOff className="w-3.5 h-3.5 text-amber-400" />
-      <span>Offline mode — cached data active</span>
+    <div className="fixed bottom-16 md:bottom-4 left-4 right-4 sm:right-auto z-50 flex items-center gap-2 rounded-xl bg-[#0F172A] text-white border border-[#334155] px-3.5 py-2.5 text-xs font-medium shadow-xl">
+      <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+      <span>All offline changes synced to cloud</span>
     </div>
   );
 }

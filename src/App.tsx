@@ -11,6 +11,7 @@ import { RankingView } from './components/RankingView';
 import { StartTrekModal } from './components/StartTrekModal';
 import { TrekDetailView } from './components/TrekDetailView';
 import { auth, googleProvider } from './lib/firebase';
+import { initOfflineSyncBridge } from './lib/syncState';
 import {
   ensurePublicProfile,
   fetchTrekById,
@@ -119,8 +120,9 @@ export default function App() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // Auth state listener
+  // Auth state listener & offline sync bridge
   useEffect(() => {
+    initOfflineSyncBridge();
     const unsub = onAuthStateChanged(auth, (user) => {
       setAuthUser(user);
       setAuthReady(true);
@@ -138,6 +140,20 @@ export default function App() {
     });
     return () => unsub();
   }, []);
+
+  // Refresh profile cleanly when internet returns after offline session
+  useEffect(() => {
+    if (!authUser) return;
+    const handleOnline = () => {
+      void ensurePublicProfile(authUser)
+        .then((profile) => setMyProfile(profile))
+        .catch(() => {
+          // Keep existing cached profile if transient error occurs
+        });
+    };
+    window.addEventListener('online', handleOnline);
+    return () => window.removeEventListener('online', handleOnline);
+  }, [authUser]);
 
   // Subscribe to public treks & profiles (no auth required)
   useEffect(() => {

@@ -3,11 +3,13 @@ import {
   collection,
   doc,
   getDoc,
+  getDocFromCache,
   getDocs,
   onSnapshot,
   query,
   serverTimestamp,
   setDoc,
+  Timestamp,
   updateDoc,
   where,
   writeBatch,
@@ -15,6 +17,7 @@ import {
 } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { calculatePathDistanceKm, generateSafeId, slugifyHandle } from '../lib/geo';
+import { commitWithOfflineQueue, setSnapshotPendingWrites } from '../lib/syncState';
 import {
   BLUEPRINT_LIMITS,
   type PublicProfile,
@@ -24,6 +27,63 @@ import {
   type WaypointCategory,
 } from '../types/trail';
 
+function getProfileCacheKey(uid: string): string {
+  return `trailfolio_profile_cache_${uid}`;
+}
+
+function saveCachedProfile(profile: PublicProfile): void {
+  try {
+    localStorage.setItem(
+      getProfileCacheKey(profile.uid),
+      JSON.stringify({
+        uid: profile.uid,
+        displayName: profile.displayName,
+        handle: profile.handle,
+        bio: profile.bio,
+        homeBase: profile.homeBase,
+        avatarUrl: profile.avatarUrl,
+        completedTreksCount: profile.completedTreksCount,
+        totalDistanceKm: profile.totalDistanceKm,
+      })
+    );
+  } catch {
+    // Ignore localStorage quota errors
+  }
+}
+
+function loadCachedProfile(uid: string): PublicProfile | null {
+  try {
+    const raw = localStorage.getItem(getProfileCacheKey(uid));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<PublicProfile>;
+    if (!parsed.uid || !parsed.handle) return null;
+    const now = Timestamp.now();
+    return {
+      uid: parsed.uid,
+      displayName: parsed.displayName || 'Explorer',
+      handle: parsed.handle,
+      bio: parsed.bio || '',
+      homeBase: parsed.homeBase || '',
+      avatarUrl: parsed.avatarUrl || '',
+      completedTreksCount: parsed.completedTreksCount || 0,
+      totalDistanceKm: parsed.totalDistanceKm || 0,
+      createdAt: now,
+      updatedAt: now,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function isOfflineUnavailableError(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message.toLowerCase() : String(err).toLowerCase();
+  return (
+    msg.includes('client is offline') ||
+    msg.includes('unavailable') ||
+    msg.includes('network-request-failed')
+  );
+}
+
 function clampString(value: string, max: number): string {
   return value.trim().slice(0, max);
 }
@@ -31,38 +91,77 @@ function clampString(value: string, max: number): string {
 export async function ensurePublicProfile(user: User): Promise<PublicProfile> {
   const path = `publicProfiles/${user.uid}`;
   const ref = doc(db, 'publicProfiles', user.uid);
+  const cachedFallback = loadCachedProfile(user.uid);
+
+  const fallbackDisplayName = clampString(
+    user.displayName || user.email?.split('@')[0] || 'Explorer',
+    BLUEPRINT_LIMITS.DISPLAY_NAME_MAX
+  );
+  const fallbackHandle = slugifyHandle(
+    user.displayName || user.email?.split('@')[0] || 'explorer',
+    user.uid.slice(0, 5).toLowerCase()
+  );
+  const fallbackAvatarUrl =
+    user.photoURL && user.photoURL.length <= BLUEPRINT_LIMITS.PHOTO_MAX_CHARS
+      ? user.photoURL
+      : '';
+
+  const buildLocalFallback = (): PublicProfile => {
+    const now = Timestamp.now();
+    return (
+      cachedFallback || {
+        uid: user.uid,
+        displayName: fallbackDisplayName,
+        handle: fallbackHandle,
+        bio: 'Documenting trails, mountain passes, viewpoints, and travel routes.',
+        homeBase: '',
+        avatarUrl: fallbackAvatarUrl,
+        completedTreksCount: 0,
+        totalDistanceKm: 0,
+        createdAt: now,
+        updatedAt: now,
+      }
+    );
+  };
+
+  // If currently offline, return cached IndexedDB / localStorage profile immediately
+  if (typeof navigator !== 'undefined' && !navigator.onLine) {
+    try {
+      const localSnap = await getDocFromCache(ref);
+      if (localSnap.exists()) {
+        const prof = localSnap.data() as PublicProfile;
+        saveCachedProfile(prof);
+        return prof;
+      }
+    } catch {
+      // Fall through to localStorage fallback
+    }
+    return buildLocalFallback();
+  }
 
   let existingSnap;
   try {
     existingSnap = await getDoc(ref);
   } catch (error) {
+    if (isOfflineUnavailableError(error)) {
+      return buildLocalFallback();
+    }
     handleFirestoreError(error, OperationType.GET, path);
   }
 
   if (existingSnap.exists()) {
-    return existingSnap.data() as PublicProfile;
+    const prof = existingSnap.data() as PublicProfile;
+    saveCachedProfile(prof);
+    return prof;
   }
-
-  const displayName = clampString(
-    user.displayName || user.email?.split('@')[0] || 'Explorer',
-    BLUEPRINT_LIMITS.DISPLAY_NAME_MAX
-  );
-  const handle = slugifyHandle(
-    user.displayName || user.email?.split('@')[0] || 'explorer',
-    user.uid.slice(0, 5).toLowerCase()
-  );
-  const avatarUrl =
-    user.photoURL && user.photoURL.length <= BLUEPRINT_LIMITS.PHOTO_MAX_CHARS
-      ? user.photoURL
-      : '';
 
   const payload = {
     uid: user.uid,
-    displayName,
-    handle,
+    displayName: fallbackDisplayName,
+    handle: fallbackHandle,
     bio: 'Documenting trails, mountain passes, viewpoints, and travel routes.',
     homeBase: '',
-    avatarUrl,
+    avatarUrl: fallbackAvatarUrl,
     completedTreksCount: 0,
     totalDistanceKm: 0,
     createdAt: serverTimestamp(),
@@ -70,10 +169,28 @@ export async function ensurePublicProfile(user: User): Promise<PublicProfile> {
   };
 
   try {
-    await setDoc(ref, payload);
-    const created = await getDoc(ref);
-    return created.data() as PublicProfile;
+    await commitWithOfflineQueue(setDoc(ref, payload), (error) =>
+      handleFirestoreError(error, OperationType.CREATE, path)
+    );
+    const now = Timestamp.now();
+    const localProf: PublicProfile = {
+      uid: user.uid,
+      displayName: fallbackDisplayName,
+      handle: fallbackHandle,
+      bio: payload.bio,
+      homeBase: '',
+      avatarUrl: fallbackAvatarUrl,
+      completedTreksCount: 0,
+      totalDistanceKm: 0,
+      createdAt: now,
+      updatedAt: now,
+    };
+    saveCachedProfile(localProf);
+    return localProf;
   } catch (error) {
+    if (isOfflineUnavailableError(error)) {
+      return buildLocalFallback();
+    }
     handleFirestoreError(error, OperationType.CREATE, path);
   }
 }
@@ -91,18 +208,37 @@ export async function updatePublicProfile(
   const path = `publicProfiles/${uid}`;
   const ref = doc(db, 'publicProfiles', uid);
   const cleanHandle = slugifyHandle(updates.handle, uid.slice(0, 4).toLowerCase());
-  try {
-    await updateDoc(ref, {
-      displayName: clampString(updates.displayName || 'Explorer', BLUEPRINT_LIMITS.DISPLAY_NAME_MAX),
+  const cleanDisplayName = clampString(
+    updates.displayName || 'Explorer',
+    BLUEPRINT_LIMITS.DISPLAY_NAME_MAX
+  );
+  const cleanBio = clampString(updates.bio, BLUEPRINT_LIMITS.BIO_MAX);
+  const cleanHomeBase = clampString(updates.homeBase, BLUEPRINT_LIMITS.HOME_BASE_MAX);
+  const cleanAvatar = updates.avatarUrl.slice(0, BLUEPRINT_LIMITS.PHOTO_MAX_CHARS);
+
+  const existing = loadCachedProfile(uid);
+  if (existing) {
+    saveCachedProfile({
+      ...existing,
+      displayName: cleanDisplayName,
       handle: cleanHandle,
-      bio: clampString(updates.bio, BLUEPRINT_LIMITS.BIO_MAX),
-      homeBase: clampString(updates.homeBase, BLUEPRINT_LIMITS.HOME_BASE_MAX),
-      avatarUrl: updates.avatarUrl.slice(0, BLUEPRINT_LIMITS.PHOTO_MAX_CHARS),
-      updatedAt: serverTimestamp(),
+      bio: cleanBio,
+      homeBase: cleanHomeBase,
+      avatarUrl: cleanAvatar,
     });
-  } catch (error) {
-    handleFirestoreError(error, OperationType.UPDATE, path);
   }
+
+  await commitWithOfflineQueue(
+    updateDoc(ref, {
+      displayName: cleanDisplayName,
+      handle: cleanHandle,
+      bio: cleanBio,
+      homeBase: cleanHomeBase,
+      avatarUrl: cleanAvatar,
+      updatedAt: serverTimestamp(),
+    }),
+    (error) => handleFirestoreError(error, OperationType.UPDATE, path)
+  );
 }
 
 export async function getPublicProfileByHandle(handle: string): Promise<PublicProfile | null> {
@@ -174,12 +310,15 @@ export function subscribeMyTreks(
   const q = query(collection(db, path), where('ownerId', '==', uid));
   return onSnapshot(
     q,
+    { includeMetadataChanges: true },
     (snap) => {
+      const hasPending = snap.docs.some((d) => d.metadata.hasPendingWrites);
+      setSnapshotPendingWrites(hasPending);
       const items = snap.docs
         .map((d) => d.data() as Trek)
         .sort((a, b) => {
-          const aTime = a.updatedAt?.toMillis?.() ?? 0;
-          const bTime = b.updatedAt?.toMillis?.() ?? 0;
+          const aTime = a.updatedAt?.toMillis?.() ?? Date.now();
+          const bTime = b.updatedAt?.toMillis?.() ?? Date.now();
           return bTime - aTime;
         });
       onData(items);
@@ -204,7 +343,12 @@ export function subscribeTrekWaypoints(
 
   return onSnapshot(
     q,
+    { includeMetadataChanges: true },
     (snap) => {
+      const hasPending = snap.docs.some((d) => d.metadata.hasPendingWrites);
+      if (hasPending) {
+        setSnapshotPendingWrites(true);
+      }
       const items = snap.docs
         .map((d) => d.data() as Waypoint)
         .sort((a, b) => a.orderIndex - b.orderIndex);
@@ -300,7 +444,9 @@ export async function startTrek(params: {
       reachedAt: serverTimestamp(),
     });
 
-    await batch.commit();
+    await commitWithOfflineQueue(batch.commit(), (error) =>
+      handleFirestoreError(error, OperationType.CREATE, path)
+    );
     return trekId;
   } catch (error) {
     handleFirestoreError(error, OperationType.CREATE, path);
@@ -378,7 +524,9 @@ export async function addWaypointToTrek(params: {
       updatedAt: serverTimestamp(),
     });
 
-    await batch.commit();
+    await commitWithOfflineQueue(batch.commit(), (error) =>
+      handleFirestoreError(error, OperationType.WRITE, path)
+    );
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, path);
   }
@@ -437,7 +585,9 @@ export async function updateActiveWaypoint(params: {
       coverPhotoDataUrl: firstAvailablePhoto,
       updatedAt: serverTimestamp(),
     });
-    await batch.commit();
+    await commitWithOfflineQueue(batch.commit(), (error) =>
+      handleFirestoreError(error, OperationType.UPDATE, path)
+    );
   } catch (error) {
     handleFirestoreError(error, OperationType.UPDATE, path);
   }
@@ -456,12 +606,18 @@ export async function recalculateOwnerStats(uid: string): Promise<void> {
     const totalDistanceKm =
       Math.round(completed.reduce((sum, t) => sum + (t.distanceKm || 0), 0) * 100) / 100;
 
-    await updateDoc(doc(db, 'publicProfiles', uid), {
-      completedTreksCount,
-      totalDistanceKm,
-      updatedAt: serverTimestamp(),
-    });
+    await commitWithOfflineQueue(
+      updateDoc(doc(db, 'publicProfiles', uid), {
+        completedTreksCount,
+        totalDistanceKm,
+        updatedAt: serverTimestamp(),
+      }),
+      (error) => handleFirestoreError(error, OperationType.UPDATE, path)
+    );
   } catch (error) {
+    if (isOfflineUnavailableError(error)) {
+      return;
+    }
     handleFirestoreError(error, OperationType.UPDATE, path);
   }
 }
@@ -498,7 +654,9 @@ export async function finishTrek(params: {
       }
     }
 
-    await batch.commit();
+    await commitWithOfflineQueue(batch.commit(), (error) =>
+      handleFirestoreError(error, OperationType.UPDATE, path)
+    );
     await recalculateOwnerStats(params.trek.ownerId);
   } catch (error) {
     handleFirestoreError(error, OperationType.UPDATE, path);
@@ -522,7 +680,9 @@ export async function toggleTrekVisibility(
         trekIsPublic: nextIsPublic,
       });
     }
-    await batch.commit();
+    await commitWithOfflineQueue(batch.commit(), (error) =>
+      handleFirestoreError(error, OperationType.UPDATE, path)
+    );
   } catch (error) {
     handleFirestoreError(error, OperationType.UPDATE, path);
   }
@@ -542,7 +702,9 @@ export async function deleteTrekAndWaypoints(
       batch.delete(wpDoc.ref);
     });
     batch.delete(doc(db, 'treks', trekId));
-    await batch.commit();
+    await commitWithOfflineQueue(batch.commit(), (error) =>
+      handleFirestoreError(error, OperationType.DELETE, path)
+    );
     await recalculateOwnerStats(ownerUid);
   } catch (error) {
     handleFirestoreError(error, OperationType.DELETE, path);
@@ -589,7 +751,9 @@ export async function deleteWaypointFromActiveTrek(
       coverPhotoDataUrl,
       updatedAt: serverTimestamp(),
     });
-    await batch.commit();
+    await commitWithOfflineQueue(batch.commit(), (error) =>
+      handleFirestoreError(error, OperationType.DELETE, path)
+    );
   } catch (error) {
     handleFirestoreError(error, OperationType.DELETE, path);
   }

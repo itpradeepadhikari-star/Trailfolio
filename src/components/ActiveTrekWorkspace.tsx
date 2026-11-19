@@ -64,8 +64,26 @@ export function ActiveTrekWorkspace({
   const [selectedWpId, setSelectedWpId] = useState<string | null>(null);
   const [showCamera, setShowCamera] = useState(false);
   const [gpsLoading, setGpsLoading] = useState(false);
+  const [showManualCoords, setShowManualCoords] = useState(false);
+  const [manualLat, setManualLat] = useState('');
+  const [manualLng, setManualLng] = useState('');
   const [savingWp, setSavingWp] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const handleApplyManualCoords = () => {
+    const lat = Number(manualLat);
+    const lng = Number(manualLng);
+    if (!Number.isFinite(lat) || lat < -90 || lat > 90 || !Number.isFinite(lng) || lng < -180 || lng > 180) {
+      setError('Enter valid latitude (-90 to 90) and longitude (-180 to 180).');
+      return;
+    }
+    setError(null);
+    setWpCoords({ lat: Number(lat.toFixed(6)), lng: Number(lng.toFixed(6)) });
+    if (!wpName.trim()) {
+      setWpName(`Waypoint #${waypoints.length + 1}`);
+    }
+    setShowManualCoords(false);
+  };
 
   const [showFinishModal, setShowFinishModal] = useState(false);
   const [finishSummary, setFinishSummary] = useState(trek.summary || '');
@@ -283,23 +301,60 @@ export function ActiveTrekWorkspace({
               }}
             />
 
-            <div className="text-xs font-mono tabular-nums text-[#475569] flex items-center justify-between bg-[#F6F7FB] border border-[#E2E8F0] px-3 py-2.5 rounded-xl">
+            <div className="text-xs font-mono tabular-nums text-[#475569] flex items-center justify-between gap-2 bg-[#F6F7FB] border border-[#E2E8F0] px-3 py-2.5 rounded-xl">
               <span className="flex items-center gap-1.5 min-w-0 truncate">
                 <MapPin className="w-3.5 h-3.5 text-[#2563EB] shrink-0" />
                 {wpCoords
                   ? formatCoords(wpCoords.lat, wpCoords.lng)
-                  : 'Click on the map to pin coordinates'}
+                  : 'Pin via GPS, map, or coords'}
               </span>
-              {wpCoords && (
+              <div className="flex items-center gap-2.5 shrink-0">
                 <button
                   type="button"
-                  onClick={() => setWpCoords(null)}
-                  className="text-[#475569] hover:text-[#0F172A] cursor-pointer shrink-0 ml-2"
+                  onClick={() => setShowManualCoords((prev) => !prev)}
+                  className="font-sans font-medium text-[#4F46E5] hover:underline cursor-pointer"
                 >
-                  Clear
+                  {showManualCoords ? 'Hide' : 'Coords'}
                 </button>
-              )}
+                {wpCoords && (
+                  <button
+                    type="button"
+                    onClick={() => setWpCoords(null)}
+                    className="font-sans text-[#475569] hover:text-[#0F172A] cursor-pointer"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
             </div>
+
+            {showManualCoords && (
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 p-3 rounded-xl bg-[#F6F7FB] border border-[#E2E8F0]">
+                <input
+                  type="number"
+                  step="any"
+                  value={manualLat}
+                  onChange={(e) => setManualLat(e.target.value)}
+                  placeholder="Lat (e.g. 28.54)"
+                  className="px-3 min-h-[40px] text-base sm:text-xs font-mono border border-[#E2E8F0] rounded-lg bg-white focus:outline-none focus:border-[#4F46E5]"
+                />
+                <input
+                  type="number"
+                  step="any"
+                  value={manualLng}
+                  onChange={(e) => setManualLng(e.target.value)}
+                  placeholder="Lng (e.g. 83.92)"
+                  className="px-3 min-h-[40px] text-base sm:text-xs font-mono border border-[#E2E8F0] rounded-lg bg-white focus:outline-none focus:border-[#4F46E5]"
+                />
+                <button
+                  type="button"
+                  onClick={handleApplyManualCoords}
+                  className="px-3 min-h-[40px] text-xs font-medium text-white bg-[#4F46E5] hover:bg-[#4338CA] rounded-lg cursor-pointer"
+                >
+                  Apply Pin
+                </button>
+              </div>
+            )}
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="sm:col-span-2">
