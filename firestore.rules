@@ -1,0 +1,272 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global Safety Net: Default-deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Primitive Helpers ---
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_-]+$');
+    }
+
+    function isValidHandle(handle) {
+      return handle is string && handle.size() >= 2 && handle.size() <= 32 && handle.matches('^[a-z0-9_-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(userId) {
+      return isVerifiedUser() && request.auth.uid == userId;
+    }
+
+    // --- Entity Validation Blueprints ---
+    function isValidPublicProfile(data, userId) {
+      return data.keys().hasAll([
+          'uid', 'displayName', 'handle', 'bio', 'homeBase', 'avatarUrl',
+          'completedTreksCount', 'totalDistanceKm', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'uid', 'displayName', 'handle', 'bio', 'homeBase', 'avatarUrl',
+          'completedTreksCount', 'totalDistanceKm', 'createdAt', 'updatedAt'
+        ])
+        && data.uid == userId
+        && data.uid == request.auth.uid
+        && data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 60
+        && isValidHandle(data.handle)
+        && data.bio is string && data.bio.size() <= 300
+        && data.homeBase is string && data.homeBase.size() <= 80
+        && data.avatarUrl is string && data.avatarUrl.size() <= 350000
+        && data.completedTreksCount is number && data.completedTreksCount >= 0 && data.completedTreksCount <= 10000
+        && data.totalDistanceKm is number && data.totalDistanceKm >= 0 && data.totalDistanceKm <= 1000000
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidTrek(data, trekId) {
+      return data.keys().hasAll([
+          'id', 'ownerId', 'ownerName', 'ownerHandle', 'title', 'region', 'summary',
+          'difficulty', 'status', 'isPublic', 'startLocationName', 'startLat', 'startLng',
+          'endLocationName', 'endLat', 'endLng', 'distanceKm', 'maxElevationM',
+          'waypointCount', 'photoCount', 'coverPhotoDataUrl', 'startedAt', 'completedAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'id', 'ownerId', 'ownerName', 'ownerHandle', 'title', 'region', 'summary',
+          'difficulty', 'status', 'isPublic', 'startLocationName', 'startLat', 'startLng',
+          'endLocationName', 'endLat', 'endLng', 'distanceKm', 'maxElevationM',
+          'waypointCount', 'photoCount', 'coverPhotoDataUrl', 'startedAt', 'completedAt', 'updatedAt'
+        ])
+        && data.id == trekId
+        && isValidId(data.id)
+        && data.ownerId == request.auth.uid
+        && data.ownerName is string && data.ownerName.size() >= 1 && data.ownerName.size() <= 60
+        && isValidHandle(data.ownerHandle)
+        && data.title is string && data.title.size() >= 1 && data.title.size() <= 100
+        && data.region is string && data.region.size() >= 1 && data.region.size() <= 80
+        && data.summary is string && data.summary.size() <= 1000
+        && data.difficulty in ['Easy', 'Moderate', 'Challenging', 'Alpine']
+        && data.status in ['active', 'completed']
+        && data.isPublic is bool
+        && data.startLocationName is string && data.startLocationName.size() >= 1 && data.startLocationName.size() <= 120
+        && data.startLat is number && data.startLat >= -90 && data.startLat <= 90
+        && data.startLng is number && data.startLng >= -180 && data.startLng <= 180
+        && data.endLocationName is string && data.endLocationName.size() <= 120
+        && data.endLat is number && data.endLat >= -90 && data.endLat <= 90
+        && data.endLng is number && data.endLng >= -180 && data.endLng <= 180
+        && data.distanceKm is number && data.distanceKm >= 0 && data.distanceKm <= 50000
+        && data.maxElevationM is number && data.maxElevationM >= -500 && data.maxElevationM <= 9000
+        && data.waypointCount is number && data.waypointCount >= 0 && data.waypointCount <= 500
+        && data.photoCount is number && data.photoCount >= 0 && data.photoCount <= 1000
+        && data.coverPhotoDataUrl is string && data.coverPhotoDataUrl.size() <= 350000
+        && data.startedAt is timestamp
+        && (data.completedAt == null || data.completedAt is timestamp)
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidWaypointPhotos(photos) {
+      return photos is list
+        && photos.size() <= 2
+        && (photos.size() == 0 || (photos[0] is string && photos[0].size() <= 350000))
+        && (photos.size() < 2 || (photos[1] is string && photos[1].size() <= 350000));
+    }
+
+    function isValidWaypoint(data, trekId, waypointId) {
+      return data.keys().hasAll([
+          'id', 'trekId', 'ownerId', 'trekIsPublic', 'orderIndex', 'name',
+          'category', 'lat', 'lng', 'elevationM', 'note', 'photos', 'reachedAt'
+        ])
+        && data.keys().hasOnly([
+          'id', 'trekId', 'ownerId', 'trekIsPublic', 'orderIndex', 'name',
+          'category', 'lat', 'lng', 'elevationM', 'note', 'photos', 'reachedAt'
+        ])
+        && data.id == waypointId
+        && isValidId(data.id)
+        && data.trekId == trekId
+        && isValidId(data.trekId)
+        && data.ownerId == request.auth.uid
+        && data.trekIsPublic is bool
+        && data.orderIndex is number && data.orderIndex >= 0 && data.orderIndex <= 500
+        && data.name is string && data.name.size() >= 1 && data.name.size() <= 120
+        && data.category in ['trailhead', 'camp', 'viewpoint', 'summit', 'rest', 'finish']
+        && data.lat is number && data.lat >= -90 && data.lat <= 90
+        && data.lng is number && data.lng >= -180 && data.lng <= 180
+        && (data.elevationM == null || (data.elevationM is number && data.elevationM >= -500 && data.elevationM <= 9000))
+        && data.note is string && data.note.size() <= 2000
+        && isValidWaypointPhotos(data.photos)
+        && data.reachedAt is timestamp;
+    }
+
+    // --- Collection Rules ---
+
+    // Public trekker profiles (no PII stored here)
+    match /publicProfiles/{userId} {
+      allow get: if isValidId(userId) && (resource == null || existing().uid == userId);
+      allow list: if true;
+      allow create: if isOwner(userId)
+        && isValidId(userId)
+        && isValidPublicProfile(incoming(), userId)
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isOwner(userId)
+        && isValidId(userId)
+        && isValidPublicProfile(incoming(), userId)
+        && incoming().uid == existing().uid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly([
+          'displayName', 'handle', 'bio', 'homeBase', 'avatarUrl',
+          'completedTreksCount', 'totalDistanceKm', 'updatedAt'
+        ]);
+      allow delete: if false;
+    }
+
+    // Trek expeditions
+    match /treks/{trekId} {
+      allow get: if isValidId(trekId) && (
+        resource == null ||
+        existing().isPublic == true ||
+        (isSignedIn() && existing().ownerId == request.auth.uid)
+      );
+      allow list: if resource.data.isPublic == true || (isSignedIn() && resource.data.ownerId == request.auth.uid);
+
+      allow create: if isVerifiedUser()
+        && isValidId(trekId)
+        && isValidTrek(incoming(), trekId)
+        && incoming().status == 'active'
+        && incoming().completedAt == null
+        && incoming().startedAt == request.time
+        && incoming().updatedAt == request.time;
+
+      allow update: if isVerifiedUser()
+        && isValidId(trekId)
+        && isValidTrek(incoming(), trekId)
+        && existing().ownerId == request.auth.uid
+        && incoming().ownerId == existing().ownerId
+        && incoming().id == existing().id
+        && incoming().startedAt == existing().startedAt
+        && incoming().updatedAt == request.time
+        && (
+          // Action 1: Update active trek metrics & metadata
+          (
+            existing().status == 'active'
+            && incoming().status == 'active'
+            && incoming().completedAt == null
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'title', 'region', 'summary', 'difficulty', 'isPublic',
+              'endLocationName', 'endLat', 'endLng', 'distanceKm',
+              'maxElevationM', 'waypointCount', 'photoCount', 'coverPhotoDataUrl', 'updatedAt'
+            ])
+          )
+          ||
+          // Action 2: Complete trek (terminal transition)
+          (
+            existing().status == 'active'
+            && incoming().status == 'completed'
+            && incoming().completedAt == request.time
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'title', 'region', 'summary', 'difficulty', 'status', 'isPublic',
+              'endLocationName', 'endLat', 'endLng', 'distanceKm',
+              'maxElevationM', 'waypointCount', 'photoCount', 'coverPhotoDataUrl',
+              'completedAt', 'updatedAt'
+            ])
+          )
+          ||
+          // Action 3: Toggle public portfolio visibility on completed trek
+          (
+            existing().status == 'completed'
+            && incoming().status == 'completed'
+            && incoming().completedAt == existing().completedAt
+            && incoming().diff(existing()).affectedKeys().hasOnly(['isPublic', 'updatedAt'])
+          )
+        );
+
+      allow delete: if isVerifiedUser()
+        && isValidId(trekId)
+        && existing().ownerId == request.auth.uid;
+
+      // Subcollection: Ordered waypoints with notes and compressed photo snaps
+      match /waypoints/{waypointId} {
+        allow get: if isValidId(trekId) && isValidId(waypointId) && (
+          resource == null ||
+          existing().trekIsPublic == true ||
+          (isSignedIn() && existing().ownerId == request.auth.uid)
+        );
+        allow list: if resource.data.trekIsPublic == true || (isSignedIn() && resource.data.ownerId == request.auth.uid);
+
+        allow create: if isVerifiedUser()
+          && isValidId(trekId)
+          && isValidId(waypointId)
+          && isValidWaypoint(incoming(), trekId, waypointId)
+          && incoming().reachedAt == request.time
+          && existsAfter(/databases/$(database)/documents/treks/$(trekId))
+          && getAfter(/databases/$(database)/documents/treks/$(trekId)).data.ownerId == request.auth.uid
+          && getAfter(/databases/$(database)/documents/treks/$(trekId)).data.status == 'active'
+          && incoming().trekIsPublic == getAfter(/databases/$(database)/documents/treks/$(trekId)).data.isPublic;
+
+        allow update: if isVerifiedUser()
+          && isValidId(trekId)
+          && isValidId(waypointId)
+          && isValidWaypoint(incoming(), trekId, waypointId)
+          && existing().ownerId == request.auth.uid
+          && incoming().ownerId == existing().ownerId
+          && incoming().id == existing().id
+          && incoming().trekId == existing().trekId
+          && incoming().reachedAt == existing().reachedAt
+          && (
+            // Action 1: Edit waypoint note/details while trek is active
+            (
+              get(/databases/$(database)/documents/treks/$(trekId)).data.ownerId == request.auth.uid
+              && get(/databases/$(database)/documents/treks/$(trekId)).data.status == 'active'
+              && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'category', 'elevationM', 'note', 'photos'])
+            )
+            ||
+            // Action 2: Atomic visibility sync with parent trek via writeBatch
+            (
+              incoming().diff(existing()).affectedKeys().hasOnly(['trekIsPublic'])
+              && incoming().trekIsPublic == getAfter(/databases/$(database)/documents/treks/$(trekId)).data.isPublic
+            )
+          );
+
+        allow delete: if isVerifiedUser()
+          && isValidId(trekId)
+          && isValidId(waypointId)
+          && existing().ownerId == request.auth.uid;
+      }
+    }
+  }
+}

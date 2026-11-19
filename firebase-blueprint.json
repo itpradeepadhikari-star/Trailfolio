@@ -1,0 +1,338 @@
+{
+  "entities": {
+    "PublicProfile": {
+      "title": "PublicProfile",
+      "description": "Public trekker portfolio identity containing non-PII profile attributes and cumulative expedition metrics.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "Firebase Auth UID of the trekker.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "displayName": {
+          "type": "string",
+          "description": "Public display name of the trekker.",
+          "minLength": 1,
+          "maxLength": 60
+        },
+        "handle": {
+          "type": "string",
+          "description": "URL-safe public portfolio handle.",
+          "minLength": 2,
+          "maxLength": 32,
+          "pattern": "^[a-z0-9_\\-]+$"
+        },
+        "bio": {
+          "type": "string",
+          "description": "Short biography or expedition focus.",
+          "maxLength": 300
+        },
+        "homeBase": {
+          "type": "string",
+          "description": "Home region or base city.",
+          "maxLength": 80
+        },
+        "avatarUrl": {
+          "type": "string",
+          "description": "Profile avatar URL or compressed data URL.",
+          "maxLength": 350000
+        },
+        "completedTreksCount": {
+          "type": "number",
+          "description": "Total completed treks count."
+        },
+        "totalDistanceKm": {
+          "type": "number",
+          "description": "Cumulative distance across completed treks in kilometers."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server creation timestamp."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server last update timestamp."
+        }
+      },
+      "required": [
+        "uid",
+        "displayName",
+        "handle",
+        "bio",
+        "homeBase",
+        "avatarUrl",
+        "completedTreksCount",
+        "totalDistanceKm",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "Trek": {
+      "title": "Trek",
+      "description": "A recorded hiking or trekking expedition with start/end coordinates, trail stats, visibility, and status.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique trek identifier matching document ID.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "ownerId": {
+          "type": "string",
+          "description": "Firebase Auth UID of the trek creator.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "ownerName": {
+          "type": "string",
+          "description": "Snapshot of trekker display name.",
+          "minLength": 1,
+          "maxLength": 60
+        },
+        "ownerHandle": {
+          "type": "string",
+          "description": "Snapshot of trekker handle.",
+          "minLength": 2,
+          "maxLength": 32,
+          "pattern": "^[a-z0-9_\\-]+$"
+        },
+        "title": {
+          "type": "string",
+          "description": "Expedition or trail title.",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "region": {
+          "type": "string",
+          "description": "Mountain range, park, or geographic region.",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "summary": {
+          "type": "string",
+          "description": "Overall expedition summary and reflections.",
+          "maxLength": 1000
+        },
+        "difficulty": {
+          "type": "string",
+          "description": "Trail grade.",
+          "enum": ["Easy", "Moderate", "Challenging", "Alpine"]
+        },
+        "status": {
+          "type": "string",
+          "description": "Expedition lifecycle state.",
+          "enum": ["active", "completed"]
+        },
+        "isPublic": {
+          "type": "boolean",
+          "description": "Whether this trek appears on the public portfolio."
+        },
+        "startLocationName": {
+          "type": "string",
+          "description": "Name of the trailhead or starting point.",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "startLat": {
+          "type": "number",
+          "description": "Starting latitude."
+        },
+        "startLng": {
+          "type": "number",
+          "description": "Starting longitude."
+        },
+        "endLocationName": {
+          "type": "string",
+          "description": "Latest or final reached waypoint name.",
+          "maxLength": 120
+        },
+        "endLat": {
+          "type": "number",
+          "description": "Latest or final latitude."
+        },
+        "endLng": {
+          "type": "number",
+          "description": "Latest or final longitude."
+        },
+        "distanceKm": {
+          "type": "number",
+          "description": "Computed trail distance in kilometers."
+        },
+        "maxElevationM": {
+          "type": "number",
+          "description": "Highest recorded elevation in meters."
+        },
+        "waypointCount": {
+          "type": "number",
+          "description": "Total waypoints recorded on this trek."
+        },
+        "photoCount": {
+          "type": "number",
+          "description": "Total snaps captured across waypoints."
+        },
+        "coverPhotoDataUrl": {
+          "type": "string",
+          "description": "Optional compressed cover photo data URL.",
+          "maxLength": 350000
+        },
+        "startedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when trek started."
+        },
+        "completedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when trek finished, or null while active."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of latest update."
+        }
+      },
+      "required": [
+        "id",
+        "ownerId",
+        "ownerName",
+        "ownerHandle",
+        "title",
+        "region",
+        "summary",
+        "difficulty",
+        "status",
+        "isPublic",
+        "startLocationName",
+        "startLat",
+        "startLng",
+        "endLocationName",
+        "endLat",
+        "endLng",
+        "distanceKm",
+        "maxElevationM",
+        "waypointCount",
+        "photoCount",
+        "coverPhotoDataUrl",
+        "startedAt",
+        "completedAt",
+        "updatedAt"
+      ]
+    },
+    "Waypoint": {
+      "title": "Waypoint",
+      "description": "A recorded checkpoint reached during a trek with coordinates, elevation, field notes, and compressed snaps.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique waypoint identifier matching document ID.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "trekId": {
+          "type": "string",
+          "description": "Parent trek document ID.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "ownerId": {
+          "type": "string",
+          "description": "Firebase Auth UID of the trek owner.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "trekIsPublic": {
+          "type": "boolean",
+          "description": "Mirrored visibility flag from parent trek for secure list queries."
+        },
+        "orderIndex": {
+          "type": "number",
+          "description": "Sequential order index of waypoint along the trek."
+        },
+        "name": {
+          "type": "string",
+          "description": "Waypoint label (e.g. Base Camp, Ridge Pass).",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "category": {
+          "type": "string",
+          "description": "Waypoint classification.",
+          "enum": ["trailhead", "camp", "viewpoint", "summit", "rest", "finish"]
+        },
+        "lat": {
+          "type": "number",
+          "description": "Waypoint latitude."
+        },
+        "lng": {
+          "type": "number",
+          "description": "Waypoint longitude."
+        },
+        "elevationM": {
+          "type": "number",
+          "description": "Optional elevation in meters (or null)."
+        },
+        "note": {
+          "type": "string",
+          "description": "Field note recorded at this waypoint.",
+          "maxLength": 2000
+        },
+        "photos": {
+          "type": "array",
+          "description": "Up to 2 compressed JPEG/WebP data URLs captured at this waypoint."
+        },
+        "reachedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when the waypoint was logged."
+        }
+      },
+      "required": [
+        "id",
+        "trekId",
+        "ownerId",
+        "trekIsPublic",
+        "orderIndex",
+        "name",
+        "category",
+        "lat",
+        "lng",
+        "elevationM",
+        "note",
+        "photos",
+        "reachedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/publicProfiles/{userId}": {
+      "schema": {
+        "$ref": "#/entities/PublicProfile"
+      },
+      "description": "Publicly readable trekker portfolio profiles without PII."
+    },
+    "/treks/{trekId}": {
+      "schema": {
+        "$ref": "#/entities/Trek"
+      },
+      "description": "Trekker expedition logs, public when isPublic is true or readable by owner."
+    },
+    "/treks/{trekId}/waypoints/{waypointId}": {
+      "schema": {
+        "$ref": "#/entities/Waypoint"
+      },
+      "description": "Ordered waypoints, field notes, and compressed snaps belonging to a trek."
+    }
+  }
+}
