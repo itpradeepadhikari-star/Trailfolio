@@ -38,7 +38,7 @@ export function CameraSnapModal({ onCapture, onClose }: CameraSnapModalProps) {
         }
       } catch {
         if (active) {
-          setCameraError('Camera access was not granted. You can still upload a trail photo from your device.');
+          setCameraError('Camera access was not granted. You can still upload a photo from your device.');
         }
       }
     }
@@ -97,7 +97,7 @@ export function CameraSnapModal({ onCapture, onClose }: CameraSnapModalProps) {
       <div className="bg-white border border-[#E2E8F0] rounded-t-3xl sm:rounded-2xl max-w-lg w-full overflow-hidden shadow-2xl">
         <div className="sm:hidden w-10 h-1 rounded-full bg-[#CBD5E1] mx-auto mt-2.5" />
         <div className="flex items-center justify-between px-5 py-4 border-b border-[#E2E8F0]">
-          <h3 className="text-base font-semibold text-[#0F172A]">Take a Trail Snap</h3>
+          <h3 className="text-base font-semibold text-[#0F172A]">Take a Travel Snap</h3>
           <button
             type="button"
             onClick={onClose}

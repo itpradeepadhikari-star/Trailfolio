@@ -115,7 +115,7 @@ export function TrekDetailView({
               className="inline-flex items-center gap-1.5 px-3.5 min-h-[40px] py-2 text-xs font-medium text-[#0F172A] bg-white border border-[#E2E8F0] rounded-xl hover:bg-[#EEF2FF] hover:border-[#C7D2FE] whitespace-nowrap shrink-0 cursor-pointer trail-transition"
             >
               {copied ? <Check className="w-3.5 h-3.5 text-[#4F46E5]" /> : <Share2 className="w-3.5 h-3.5 text-[#4F46E5]" />}
-              <span>{copied ? 'Link Copied' : 'Share Trek'}</span>
+              <span>{copied ? 'Link Copied' : 'Share Trip'}</span>
             </button>
           )}
 
@@ -137,7 +137,7 @@ export function TrekDetailView({
               className="inline-flex items-center gap-1.5 px-3.5 min-h-[40px] py-2 text-xs font-medium text-[#0F172A] bg-white border border-[#E2E8F0] rounded-xl hover:bg-[#EEF2FF] hover:border-[#C7D2FE] whitespace-nowrap shrink-0 cursor-pointer trail-transition"
             >
               {trek.isPublic ? <Eye className="w-3.5 h-3.5 text-[#4F46E5]" /> : <EyeOff className="w-3.5 h-3.5 text-[#475569]" />}
-              <span>{trek.isPublic ? 'Public Portfolio' : 'Private Log'}</span>
+              <span>{trek.isPublic ? 'Public Portfolio' : 'Private Trip'}</span>
             </button>
           )}
 
@@ -221,7 +221,7 @@ export function TrekDetailView({
             </p>
           </div>
           <div>
-            <p className="text-xs text-[#475569]">Field Snaps</p>
+            <p className="text-xs text-[#475569]">Trip Snaps</p>
             <p className="text-2xl font-semibold font-mono tabular-nums text-[#2563EB]">
               {allPhotos.length}
             </p>
@@ -242,7 +242,7 @@ export function TrekDetailView({
       <section className="py-4 sm:py-6">
         <div className="flex items-baseline justify-between mb-5 sm:mb-6">
           <h2 className="text-xl sm:text-2xl font-semibold tracking-tight text-[#0F172A]">
-            Expedition Waypoints &amp; Field Notes
+            Route Waypoints &amp; Travel Notes
           </h2>
           <span className="text-xs font-mono tabular-nums text-[#475569]">
             {waypoints.length} stops

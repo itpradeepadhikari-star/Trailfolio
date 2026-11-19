@@ -30,7 +30,7 @@ export function slugifyHandle(input: string, fallbackSuffix = ''): string {
     .trim()
     .replace(/[^a-z0-9_-]+/g, '-')
     .replace(/^-+|-+$/g, '');
-  const base = cleaned.length >= 2 ? cleaned : `trekker-${fallbackSuffix || 'user'}`;
+  const base = cleaned.length >= 2 ? cleaned : `explorer-${fallbackSuffix || 'user'}`;
   return base.slice(0, BLUEPRINT_LIMITS.HANDLE_MAX);
 }
 

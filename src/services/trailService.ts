@@ -44,11 +44,11 @@ export async function ensurePublicProfile(user: User): Promise<PublicProfile> {
   }
 
   const displayName = clampString(
-    user.displayName || user.email?.split('@')[0] || 'Trail Explorer',
+    user.displayName || user.email?.split('@')[0] || 'Explorer',
     BLUEPRINT_LIMITS.DISPLAY_NAME_MAX
   );
   const handle = slugifyHandle(
-    user.displayName || user.email?.split('@')[0] || 'trekker',
+    user.displayName || user.email?.split('@')[0] || 'explorer',
     user.uid.slice(0, 5).toLowerCase()
   );
   const avatarUrl =
@@ -60,7 +60,7 @@ export async function ensurePublicProfile(user: User): Promise<PublicProfile> {
     uid: user.uid,
     displayName,
     handle,
-    bio: 'Documenting mountain passes, camp coordinates, and ridge trails.',
+    bio: 'Documenting trails, mountain passes, viewpoints, and travel routes.',
     homeBase: '',
     avatarUrl,
     completedTreksCount: 0,
@@ -93,7 +93,7 @@ export async function updatePublicProfile(
   const cleanHandle = slugifyHandle(updates.handle, uid.slice(0, 4).toLowerCase());
   try {
     await updateDoc(ref, {
-      displayName: clampString(updates.displayName || 'Trekker', BLUEPRINT_LIMITS.DISPLAY_NAME_MAX),
+      displayName: clampString(updates.displayName || 'Explorer', BLUEPRINT_LIMITS.DISPLAY_NAME_MAX),
       handle: cleanHandle,
       bio: clampString(updates.bio, BLUEPRINT_LIMITS.BIO_MAX),
       homeBase: clampString(updates.homeBase, BLUEPRINT_LIMITS.HOME_BASE_MAX),

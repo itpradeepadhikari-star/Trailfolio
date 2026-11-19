@@ -196,7 +196,7 @@ export function ProfileView({
               tab === 'portfolio' ? 'bg-white text-[#4F46E5] shadow-xs' : 'text-[#475569] hover:text-[#0F172A]'
             }`}
           >
-            My Treks ({myTreks.length})
+            My Trips ({myTreks.length})
           </button>
           <button
             type="button"
@@ -249,7 +249,7 @@ export function ProfileView({
               className="inline-flex items-center gap-1.5 px-4 min-h-[44px] py-2 text-xs font-medium text-white bg-gradient-to-r from-[#5B21B6] via-[#4F46E5] to-[#2563EB] hover:from-[#4C1D95] hover:via-[#4338CA] hover:to-[#1D4ED8] rounded-xl shadow-sm shadow-indigo-500/15 whitespace-nowrap shrink-0 cursor-pointer trail-transition"
             >
               <Plus className="w-4 h-4" />
-              <span>New Trek</span>
+              <span>New Trip</span>
             </button>
           </div>
 
@@ -272,14 +272,14 @@ export function ProfileView({
           ) : (
             <div className="bg-white border border-[#E2E8F0] rounded-2xl p-10 text-center">
               <p className="text-sm text-[#475569] mb-4">
-                No treks logged in this view yet.
+                No trips logged in this view yet.
               </p>
               <button
                 type="button"
                 onClick={onStartTrek}
                 className="px-5 min-h-[44px] py-2.5 text-sm font-medium text-white bg-gradient-to-r from-[#5B21B6] via-[#4F46E5] to-[#2563EB] hover:from-[#4C1D95] hover:via-[#4338CA] hover:to-[#1D4ED8] rounded-xl shadow-sm shadow-indigo-500/15 cursor-pointer trail-transition"
               >
-                Start a Trek
+                Start a Trip
               </button>
             </div>
           )}

@@ -110,7 +110,7 @@ export function PublicPortfolioView({
 
         <div className="grid grid-cols-3 gap-4 sm:gap-6 pt-4 md:pt-0 border-t md:border-t-0 md:border-l border-[#E2E8F0] md:pl-8 shrink-0">
           <div>
-            <p className="text-xs text-[#475569]">Public Treks</p>
+            <p className="text-xs text-[#475569]">Public Trips</p>
             <p className="text-xl font-semibold font-mono tabular-nums text-[#0F172A]">
               {publicTreks.length}
             </p>
@@ -132,7 +132,7 @@ export function PublicPortfolioView({
 
       <section className="space-y-6">
         <h2 className="text-2xl font-semibold tracking-tight text-[#0F172A]">
-          Expedition Archive
+          Trip &amp; Trail Archive
         </h2>
 
         {publicTreks.length > 0 ? (
@@ -144,7 +144,7 @@ export function PublicPortfolioView({
         ) : (
           <div className="bg-white border border-[#E2E8F0] rounded-2xl p-8 sm:p-10 text-center">
             <p className="text-sm text-[#475569]">
-              {profile.displayName} has not published any public expeditions yet.
+              {profile.displayName} has not published any public trips yet.
             </p>
           </div>
         )}

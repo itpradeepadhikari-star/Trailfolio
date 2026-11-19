@@ -109,6 +109,15 @@ interface TrailMapProps {
 
 const DEFAULT_HIMALAYAN_CENTER: LatLngLiteral = { lat: 28.53, lng: 83.99 };
 
+const CATEGORY_LABELS: Record<string, string> = {
+  trailhead: 'Start Point',
+  viewpoint: 'Viewpoint',
+  camp: 'Camp / Stay',
+  summit: 'Summit / Pass',
+  rest: 'Rest Stop',
+  finish: 'Final Destination',
+};
+
 export function TrailMap(props: TrailMapProps) {
   const apiCtx = useContext(APIProviderContext);
   if (!apiCtx) {
@@ -183,7 +192,7 @@ function TrailMapInner({
           Interactive map unavailable
         </p>
         <p className="text-xs text-[#475569] max-w-sm">
-          Coordinates and trail logs are still preserved ({waypoints.length} waypoints recorded).
+          Coordinates and route logs are still preserved ({waypoints.length} waypoints recorded).
         </p>
       </div>
     );
@@ -264,8 +273,8 @@ function TrailMapInner({
             }}
           >
             <div className="max-w-[240px] p-1 text-[#0F172A]">
-              <p className="text-xs font-mono text-[#475569] mb-0.5 capitalize">
-                #{activeWp.orderIndex + 1} · {activeWp.category}
+              <p className="text-xs font-mono text-[#475569] mb-0.5">
+                #{activeWp.orderIndex + 1} · {CATEGORY_LABELS[activeWp.category] || activeWp.category}
               </p>
               <h4 className="font-semibold text-sm leading-snug mb-1">
                 {activeWp.name}

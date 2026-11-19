@@ -43,7 +43,7 @@ export function PlaceSearchBox(props: PlaceSearchBoxProps) {
 }
 
 function PlaceSearchBoxInner({
-  placeholder = 'Search trailhead, summit, park, or village...',
+  placeholder = 'Search city, trailhead, peak, or landmark...',
   onPlaceSelect,
   className = '',
 }: PlaceSearchBoxProps) {
@@ -181,7 +181,7 @@ function PlaceSearchBoxInner({
       {open && (suggestions.length > 0 || isLoading) && (
         <ul className="absolute z-30 mt-1.5 w-full bg-white border border-[#E2E8F0] rounded-xl shadow-lg max-h-60 overflow-y-auto divide-y divide-[#F1F5F9]">
           {isLoading && suggestions.length === 0 ? (
-            <li className="px-3.5 py-3 text-xs text-[#475569]">Searching trailheads & places...</li>
+            <li className="px-3.5 py-3 text-xs text-[#475569]">Searching places &amp; landmarks...</li>
           ) : (
             suggestions.map((s, idx) => (
               <li key={idx}>

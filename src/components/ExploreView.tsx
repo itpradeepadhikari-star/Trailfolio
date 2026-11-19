@@ -97,14 +97,14 @@ export function ExploreView({
         <div className="lg:col-span-6 flex flex-col justify-between py-1 sm:py-2 lg:py-4 pr-0 lg:pr-4">
           <div className="space-y-4 sm:space-y-5">
             <p className="text-xs font-semibold tracking-wide text-[#4F46E5]">
-              Expedition Portfolio & Field Logbook
+              For Trekkers, Hikers &amp; Travelers
             </p>
             <h1 className="text-3xl sm:text-4xl md:text-5xl font-semibold tracking-tight text-[#0F172A] leading-[1.08] [text-wrap:balance]">
-              Every trailhead, camp, and ridge — mapped and remembered.
+              Every trail, peak, and journey — mapped and remembered.
             </h1>
             <p className="text-sm sm:text-base text-[#475569] leading-relaxed max-w-xl">
-              Set your starting trailhead, pin each checkpoint as you climb, capture snaps and field
-              notes along the route, and publish a living portfolio of your completed treks.
+              Set your starting location, pin every stop as you trek, hike, or travel, capture snaps
+              and notes along the route, and share a living portfolio of your journeys.
             </p>
           </div>
 
@@ -116,16 +116,16 @@ export function ExploreView({
               className="min-h-[44px] px-5 py-3 text-sm font-medium text-white bg-gradient-to-r from-[#5B21B6] via-[#4F46E5] to-[#2563EB] rounded-lg hover:from-[#4C1D95] hover:via-[#4338CA] hover:to-[#1D4ED8] shadow-sm shadow-indigo-500/15 disabled:opacity-60 disabled:cursor-not-allowed active:scale-[0.98] whitespace-nowrap shrink-0 cursor-pointer trail-transition"
             >
               {isSignedIn
-                ? 'Start a New Trek'
+                ? 'Start a New Trip'
                 : isSigningIn
                   ? 'Signing in...'
-                  : 'Sign in to Start a Trek'}
+                  : 'Sign in to Start a Trip'}
             </button>
             <a
               href="#public-expeditions"
               className="min-h-[44px] inline-flex items-center px-4 py-3 text-sm font-medium text-[#0F172A] hover:text-[#4F46E5] hover:underline whitespace-nowrap shrink-0"
             >
-              Browse Public Trails
+              Browse Public Trips
             </a>
           </div>
         </div>
@@ -134,7 +134,7 @@ export function ExploreView({
           <div className="w-full h-64 sm:h-96 lg:h-full min-h-[260px] sm:min-h-[340px] rounded-2xl overflow-hidden border border-[#E2E8F0] bg-[#EEF1FA]">
             <img
               src="/src/assets/images/hero_alpine_ridge_1795097603475.jpg"
-              alt="Hiker standing on a narrow granite alpine ridge at golden hour"
+              alt="Traveler standing on a scenic alpine ridge overlooking mountain valleys at golden hour"
               referrerPolicy="no-referrer"
               className="w-full h-full object-cover"
             />
@@ -145,13 +145,13 @@ export function ExploreView({
       {/* Full-Width 4-Column Metric Strip */}
       <section className="grid grid-cols-2 md:grid-cols-4 gap-5 sm:gap-6 py-5 sm:py-6 border-y border-[#E2E8F0]">
         <div>
-          <p className="text-xs text-[#475569] mb-1">Public Expeditions</p>
+          <p className="text-xs text-[#475569] mb-1">Public Trips &amp; Treks</p>
           <p className="text-xl sm:text-2xl font-semibold font-mono tabular-nums text-[#0F172A]">
             {publicTreks.length}
           </p>
         </div>
         <div>
-          <p className="text-xs text-[#475569] mb-1">Trekker Portfolios</p>
+          <p className="text-xs text-[#475569] mb-1">Explorer Portfolios</p>
           <p className="text-xl sm:text-2xl font-semibold font-mono tabular-nums text-[#0F172A]">
             {activeTrekkers.length}
           </p>
@@ -163,7 +163,7 @@ export function ExploreView({
           </p>
         </div>
         <div>
-          <p className="text-xs text-[#475569] mb-1">Field Snaps</p>
+          <p className="text-xs text-[#475569] mb-1">Travel Snaps</p>
           <p className="text-xl sm:text-2xl font-semibold font-mono tabular-nums text-[#0F172A]">
             {totalPhotos}
           </p>
@@ -175,10 +175,10 @@ export function ExploreView({
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
           <div>
             <h2 className="text-2xl md:text-3xl font-semibold tracking-tight text-[#0F172A]">
-              Public Expedition Logs
+              Public Trip &amp; Trail Logs
             </h2>
             <p className="text-sm text-[#475569] mt-1">
-              Click any trek to inspect its interactive waypoint route, coordinates, snaps, and field notes.
+              Click any trip to inspect its interactive route, coordinates, snaps, and travel notes.
             </p>
           </div>
 
@@ -189,8 +189,8 @@ export function ExploreView({
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Filter by trail or region..."
-                aria-label="Filter public treks"
+                placeholder="Filter by trip, trail, or place..."
+                aria-label="Filter public trips"
                 className="min-h-[42px] pl-9 pr-3.5 py-2 text-base sm:text-xs bg-white border border-[#E2E8F0] rounded-lg focus:outline-none focus:border-[#4F46E5] w-full"
               />
             </div>
@@ -231,12 +231,12 @@ export function ExploreView({
             <Compass className="w-8 h-8 text-[#4F46E5] mx-auto mb-3" />
             <h3 className="text-lg font-semibold text-[#0F172A] mb-1">
               {publicTreks.length === 0
-                ? 'Be the first trekker to publish an expedition'
-                : 'No public treks match this filter'}
+                ? 'Be the first traveler to publish a trip'
+                : 'No public trips match this filter'}
             </h3>
             <p className="text-sm text-[#475569] max-w-md mx-auto mb-5">
               {publicTreks.length === 0
-                ? 'Set your starting trailhead, record waypoints and photo snaps as you hike, and share your route publicly.'
+                ? 'Set your starting point, record locations and photo snaps as you hike, trek, or travel, and share your route publicly.'
                 : 'Try switching the difficulty filter or clearing your search query.'}
             </p>
             {publicTreks.length === 0 && (
@@ -247,7 +247,7 @@ export function ExploreView({
                 className="min-h-[44px] px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-[#5B21B6] via-[#4F46E5] to-[#2563EB] rounded-lg hover:from-[#4C1D95] hover:via-[#4338CA] hover:to-[#1D4ED8] disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
               >
                 {isSignedIn
-                  ? 'Start First Trek'
+                  ? 'Start First Trip'
                   : isSigningIn
                     ? 'Signing in...'
                     : 'Sign in with Google'}
@@ -257,16 +257,16 @@ export function ExploreView({
         )}
       </section>
 
-      {/* Public Trekker Portfolios Directory */}
+      {/* Public Explorer Portfolios Directory */}
       {activeTrekkers.length > 0 && (
         <section className="space-y-6 pt-4 border-t border-[#E2E8F0]">
           <div className="flex items-baseline justify-between">
             <div>
               <h2 className="text-2xl font-semibold tracking-tight text-[#0F172A]">
-                Trekker Portfolios
+                Trekkers, Hikers &amp; Travelers
               </h2>
               <p className="text-sm text-[#475569] mt-1">
-                Explore complete expedition collections by individual hikers and mountaineers.
+                Explore complete trip collections and route logs from fellow hikers, trekkers, and travelers.
               </p>
             </div>
           </div>
@@ -317,18 +317,18 @@ export function ExploreView({
       <section className="grid grid-cols-1 lg:grid-cols-12 gap-8 pt-6 border-t border-[#E2E8F0] items-center">
         <div className="lg:col-span-5 space-y-6">
           <h2 className="text-2xl md:text-3xl font-semibold tracking-tight text-[#0F172A] [text-wrap:balance]">
-            Built for the ridgeline, archived for everyone.
+            Built for the trail and the open road, archived for everyone.
           </h2>
 
           <div className="space-y-5">
             <div>
               <h3 className="text-sm font-semibold text-[#0F172A]">
                 <span className="text-[#4F46E5] font-mono mr-1.5">01.</span>
-                Set the Trailhead
+                Set Your Start Location
               </h3>
               <p className="text-sm text-[#475569] leading-relaxed mt-1">
-                Search any park or mountain pass, tap the map, or lock your device GPS to establish
-                your starting coordinate.
+                Search any city, park, trailhead, or landmark, tap the map, or lock your device GPS
+                to establish your starting coordinate.
               </p>
             </div>
             <div>
@@ -337,8 +337,8 @@ export function ExploreView({
                 Record Every Location Reached
               </h3>
               <p className="text-sm text-[#475569] leading-relaxed mt-1">
-                Pin each camp, viewpoint, and summit along the way with compressed camera snaps,
-                elevation readings, and trail notes.
+                Pin each stop, camp, viewpoint, summit, or destination along the way with compressed
+                camera snaps, elevation readings, and notes.
               </p>
             </div>
             <div>
@@ -347,8 +347,8 @@ export function ExploreView({
                 Share Your Public Portfolio
               </h3>
               <p className="text-sm text-[#475569] leading-relaxed mt-1">
-                Complete your expedition to tally total mileage and publish a permanent, shareable
-                link to your trekker profile.
+                Complete your trip to tally total distance and publish a permanent, shareable link
+                to your personal travel &amp; trail portfolio.
               </p>
             </div>
           </div>

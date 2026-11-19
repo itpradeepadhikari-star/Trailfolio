@@ -1,6 +1,6 @@
 {
   "name": "Trailfolio",
-  "description": "An editorial expedition portfolio and trail logbook for hikers, trekkers, and travelers to map waypoints, capture snaps, record field notes, and share completed treks publicly.",
+  "description": "A trip portfolio and route logbook for trekkers, hikers, and travelers to map waypoints, capture snaps, record notes, and share journeys publicly.",
   "requestFramePermissions": [
     "geolocation",
     "camera"

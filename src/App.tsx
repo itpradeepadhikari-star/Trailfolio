@@ -5,6 +5,7 @@ import { Compass, FolderOpen, Navigation, Trophy, User as UserIcon, X } from 'lu
 import { ActiveTrekWorkspace } from './components/ActiveTrekWorkspace';
 import { ExploreView } from './components/ExploreView';
 import { ProfileView } from './components/ProfileView';
+import { OfflineIndicator, PWAInstallButton } from './components/PWAInstallButton';
 import { PublicPortfolioView } from './components/PublicPortfolioView';
 import { RankingView } from './components/RankingView';
 import { StartTrekModal } from './components/StartTrekModal';
@@ -377,7 +378,7 @@ export default function App() {
                     : 'border-transparent'
                 }`}
               >
-                Active Trek
+                Active Trip
               </button>
               <button
                 type="button"
@@ -403,15 +404,16 @@ export default function App() {
               </button>
             </nav>
 
-            {/* Zone 3: 1 primary action */}
-            <div className="flex items-center shrink-0">
+            {/* Zone 3: Install App (mobile/installable) + 1 primary action */}
+            <div className="flex items-center gap-2 shrink-0">
+              <PWAInstallButton variant="header" />
               {authUser ? (
                 <button
                   type="button"
                   onClick={() => setShowStartModal(true)}
                   className="px-4 min-h-[40px] py-2 text-xs font-medium text-white bg-gradient-to-r from-[#5B21B6] via-[#4F46E5] to-[#2563EB] hover:from-[#4C1D95] hover:via-[#4338CA] hover:to-[#1D4ED8] rounded-xl shadow-sm shadow-indigo-500/15 whitespace-nowrap shrink-0 cursor-pointer trail-transition"
                 >
-                  Start Trek
+                  Start Trip
                 </button>
               ) : (
                 <button
@@ -481,7 +483,7 @@ export default function App() {
 
         {view.kind === 'active' && !selectedTrek && (
           <div className="max-w-lg mx-auto px-6 py-20 text-center">
-            <p className="text-sm text-[#475569] mb-4">Loading active expedition...</p>
+            <p className="text-sm text-[#475569] mb-4">Loading active trip...</p>
             <button
               type="button"
               onClick={() => navigateTo({ kind: 'explore' })}
@@ -508,8 +510,8 @@ export default function App() {
           <div className="max-w-lg mx-auto px-6 py-20 text-center">
             <p className="text-sm text-[#475569] mb-4">
               {directTrekMissing
-                ? 'This expedition could not be found or is set to private.'
-                : 'Loading trek record...'}
+                ? 'This trip could not be found or is set to private.'
+                : 'Loading trip record...'}
             </p>
             <button
               type="button"
@@ -535,8 +537,8 @@ export default function App() {
           <div className="max-w-lg mx-auto px-6 py-20 text-center">
             <p className="text-sm text-[#475569] mb-4">
               {directProfileMissing
-                ? 'This trekker portfolio could not be found.'
-                : 'Loading trekker portfolio...'}
+                ? 'This explorer portfolio could not be found.'
+                : 'Loading explorer portfolio...'}
             </p>
             <button
               type="button"
@@ -566,7 +568,7 @@ export default function App() {
           <div className="max-w-lg mx-auto px-6 py-20 text-center space-y-4">
             <p className="text-sm text-[#475569]">
               {authUser
-                ? 'Setting up your trekker profile...'
+                ? 'Setting up your explorer profile...'
                 : 'Sign in with Google to view and manage your portfolio.'}
             </p>
             <button
@@ -582,7 +584,7 @@ export default function App() {
 
       <footer className="border-t border-[#E2E8F0] mt-16">
         <div className="max-w-[1360px] mx-auto px-4 sm:px-6 py-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-[#475569]">
-          <span>Trailfolio · Expedition Portfolios &amp; Waypoint Logbooks</span>
+          <span>Trailfolio · Trip Portfolios for Trekkers, Hikers &amp; Travelers</span>
           <div className="flex items-center gap-4">
             <button
               type="button"
@@ -598,6 +600,7 @@ export default function App() {
             >
               Ranking
             </button>
+            <PWAInstallButton variant="footer" />
             <a
               href="https://cloud.google.com/maps-platform/terms?utm_campaign=gmp_mcp_codeassist_v1_aistudio"
               target="_blank"
@@ -688,8 +691,8 @@ export default function App() {
             <h2 className="text-lg font-semibold text-[#0F172A]">Preparing Profile</h2>
             <p className="text-sm text-[#475569]">
               {authUser
-                ? 'Your trekker profile is still loading. Please wait a moment and try again.'
-                : 'Sign in with Google to start a new trek.'}
+                ? 'Your explorer profile is still loading. Please wait a moment and try again.'
+                : 'Sign in with Google to start logging a new trip.'}
             </p>
             <div className="flex justify-end gap-2">
               <button
@@ -703,6 +706,7 @@ export default function App() {
           </div>
         </div>
       )}
+      <OfflineIndicator />
       </div>
     </MapsProviderWrapper>
   );

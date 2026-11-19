@@ -268,10 +268,10 @@ export function RankingView({
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="space-y-1 max-w-2xl">
           <p className="text-xs font-medium text-[#4F46E5]">
-            Public Expedition Ledger · @{entry.profile.handle}
+            Public Trip Ledger · @{entry.profile.handle}
           </p>
           <h3 className="text-lg font-semibold text-[#0F172A]">
-            {entry.profile.displayName}&apos;s Recorded Travels ({entry.publicTreks.length} public)
+            {entry.profile.displayName}&apos;s Recorded Trips ({entry.publicTreks.length} public)
           </h3>
           {entry.profile.bio && (
             <p className="text-xs text-[#475569] leading-relaxed">{entry.profile.bio}</p>
@@ -344,7 +344,7 @@ export function RankingView({
 
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-6 gap-y-2 pt-1 text-xs">
                         <div>
-                          <span className="text-[#475569] block">Start Trailhead</span>
+                          <span className="text-[#475569] block">Start Location</span>
                           <span className="font-medium text-[#0F172A] block truncate">
                             {trek.startLocationName}
                           </span>
@@ -370,7 +370,7 @@ export function RankingView({
                           </span>
                         </div>
                         <div>
-                          <span className="text-[#475569] block">Checkpoints &amp; Snaps</span>
+                          <span className="text-[#475569] block">Stops &amp; Snaps</span>
                           <span className="font-mono tabular-nums font-medium text-[#0F172A]">
                             {trek.waypointCount} pts · {trek.photoCount} snaps
                           </span>
@@ -398,7 +398,7 @@ export function RankingView({
                       onClick={() => onOpenTrek(trek)}
                       className="inline-flex items-center gap-1.5 px-3.5 min-h-[40px] py-2 text-xs font-medium text-[#4F46E5] hover:underline whitespace-nowrap shrink-0 cursor-pointer"
                     >
-                      <span>Full Expedition Page</span>
+                      <span>Full Trip Page</span>
                       <ArrowUpRight className="w-3.5 h-3.5" />
                     </button>
                   </div>
@@ -504,7 +504,7 @@ export function RankingView({
 
                     {!isLoadingWps && !wpError && cachedWaypoints.length === 0 && (
                       <p className="text-xs text-[#475569]">
-                        No public waypoint coordinates logged for this expedition yet.
+                        No public waypoint coordinates logged for this trip yet.
                       </p>
                     )}
                   </div>
@@ -523,8 +523,8 @@ export function RankingView({
 
       {entry.privateCompletedCount > 0 && (
         <p className="text-xs text-[#475569]">
-          {entry.privateCompletedCount} additional completed expedition
-          {entry.privateCompletedCount === 1 ? ' is' : 's are'} kept private by this traveler.
+          {entry.privateCompletedCount} additional completed trip
+          {entry.privateCompletedCount === 1 ? ' is' : 's are'} kept private by this explorer.
         </p>
       )}
     </div>
@@ -535,17 +535,17 @@ export function RankingView({
       {/* Page Title & Lead */}
       <section className="space-y-3 sm:space-y-4">
         <p className="text-xs font-semibold tracking-wide text-[#4F46E5]">
-          Public Expedition Leaderboard
+          Public Explorer Leaderboard
         </p>
         <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6">
           <div className="space-y-3 max-w-2xl">
             <h1 className="text-3xl sm:text-4xl font-semibold tracking-tight text-[#0F172A] leading-[1.12] [text-wrap:balance]">
-              Traveler Rankings by Expeditions Recorded
+              Trekkers, Hikers &amp; Travelers Ranking
             </h1>
             <p className="text-sm md:text-base text-[#475569] leading-relaxed">
-              Public leaderboard ordered by each traveler&apos;s number of completed and active
-              travels. Expand any traveler row to inspect their complete list of routes, trailhead
-              coordinates, distances, elevation peaks, and field notes.
+              Public leaderboard ordered by each explorer&apos;s number of completed and active
+              trips, hikes, and treks. Expand any row to inspect their complete list of routes,
+              coordinates, distances, elevation peaks, and travel notes.
             </p>
           </div>
         </div>
@@ -554,13 +554,13 @@ export function RankingView({
       {/* Full-Width 4-Column Metric Strip */}
       <section className="grid grid-cols-2 md:grid-cols-4 gap-5 sm:gap-6 py-5 sm:py-6 border-y border-[#E2E8F0]">
         <div>
-          <p className="text-xs text-[#475569] mb-1">Ranked Travelers</p>
+          <p className="text-xs text-[#475569] mb-1">Ranked Explorers</p>
           <p className="text-2xl font-semibold font-mono tabular-nums text-[#0F172A]">
             {aggregateStats.travelerCount}
           </p>
         </div>
         <div>
-          <p className="text-xs text-[#475569] mb-1">Total Travels Logged</p>
+          <p className="text-xs text-[#475569] mb-1">Total Trips Logged</p>
           <p className="text-2xl font-semibold font-mono tabular-nums text-[#4F46E5]">
             {aggregateStats.totalTravels}
           </p>
@@ -572,7 +572,7 @@ export function RankingView({
           </p>
         </div>
         <div>
-          <p className="text-xs text-[#475569] mb-1">Public Field Snaps</p>
+          <p className="text-xs text-[#475569] mb-1">Public Snaps</p>
           <p className="text-2xl font-semibold font-mono tabular-nums text-[#2563EB]">
             {aggregateStats.totalSnaps}
           </p>
@@ -587,7 +587,7 @@ export function RankingView({
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search traveler, @handle, or trail..."
+            placeholder="Search name, @handle, or route..."
             aria-label="Search traveler rankings"
             className="pl-9 pr-3.5 min-h-[44px] py-2 text-base sm:text-xs bg-white border border-[#E2E8F0] rounded-xl focus:outline-none focus:border-[#4F46E5] w-full"
           />
@@ -603,7 +603,7 @@ export function RankingView({
                 : 'text-[#475569] hover:text-[#0F172A]'
             }`}
           >
-            Rank by Travels
+            Rank by Trips
           </button>
           <button
             type="button"
@@ -639,12 +639,12 @@ export function RankingView({
                 <thead>
                   <tr className="bg-[#F6F7FB] border-b border-[#E2E8F0] text-xs font-medium text-[#475569]">
                     <th className="py-3.5 pl-6 pr-3 w-20">Rank</th>
-                    <th className="py-3.5 px-3">Traveler</th>
-                    <th className="py-3.5 px-3 text-right">Travels</th>
+                    <th className="py-3.5 px-3">Explorer</th>
+                    <th className="py-3.5 px-3 text-right">Trips</th>
                     <th className="py-3.5 px-3 text-right">Distance</th>
                     <th className="py-3.5 px-3 text-right">Peak Elevation</th>
-                    <th className="py-3.5 px-3 text-right">Points &amp; Snaps</th>
-                    <th className="py-3.5 pl-3 pr-6 text-right">Travels List</th>
+                    <th className="py-3.5 px-3 text-right">Stops &amp; Snaps</th>
+                    <th className="py-3.5 pl-3 pr-6 text-right">Trips List</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#E2E8F0]">
@@ -735,8 +735,8 @@ export function RankingView({
                               >
                                 <span>
                                   {isExpanded
-                                    ? 'Hide Travels'
-                                    : `View Travels (${entry.publicTreks.length})`}
+                                    ? 'Hide Trips'
+                                    : `View Trips (${entry.publicTreks.length})`}
                                 </span>
                                 {isExpanded ? (
                                   <ChevronUp className="w-3.5 h-3.5" />
@@ -814,7 +814,7 @@ export function RankingView({
                         <p className="text-base font-semibold font-mono tabular-nums text-[#4F46E5]">
                           {entry.totalTravelsCount}
                         </p>
-                        <p className="text-[11px] text-[#475569]">travels</p>
+                        <p className="text-[11px] text-[#475569]">trips</p>
                       </div>
                     </div>
 
@@ -851,8 +851,8 @@ export function RankingView({
                     >
                       <span>
                         {isExpanded
-                          ? 'Hide Travels'
-                          : `View Travels (${entry.publicTreks.length})`}
+                          ? 'Hide Trips'
+                          : `View Trips (${entry.publicTreks.length})`}
                       </span>
                       {isExpanded ? (
                         <ChevronUp className="w-3.5 h-3.5" />
@@ -873,13 +873,13 @@ export function RankingView({
           <Compass className="w-8 h-8 text-[#4F46E5] mx-auto mb-3" />
           <h2 className="text-lg font-semibold text-[#0F172A] mb-1">
             {rankedTravelers.length === 0
-              ? 'No ranked travelers yet'
-              : 'No travelers match this search'}
+              ? 'No ranked explorers yet'
+              : 'No explorers match this search'}
           </h2>
           <p className="text-sm text-[#475569]">
             {rankedTravelers.length === 0
-              ? 'Travelers appear in the public ranking once they log a public trek or complete an expedition.'
-              : 'Clear your search query to view all ranked travelers.'}
+              ? 'Trekkers, hikers, and travelers appear in the public ranking once they log a public trip or complete a journey.'
+              : 'Clear your search query to view all ranked explorers.'}
           </p>
         </div>
       )}

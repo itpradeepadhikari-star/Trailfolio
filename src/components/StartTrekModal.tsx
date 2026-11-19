@@ -52,7 +52,7 @@ export function StartTrekModal({ profile, onClose, onCreated }: StartTrekModalPr
           setElevationM(String(Math.round(pos.coords.altitude)));
         }
         if (!startLocationName.trim()) {
-          setStartLocationName('Trailhead GPS Point');
+          setStartLocationName('GPS Start Location');
         }
         setGpsLoading(false);
       },
@@ -78,18 +78,18 @@ export function StartTrekModal({ profile, onClose, onCreated }: StartTrekModalPr
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) {
-      setError('Enter a name for your trek.');
+      setError('Enter a title for your trip or route.');
       return;
     }
     if (!region.trim()) {
-      setError('Enter the mountain range, park, or region.');
+      setError('Enter the region, park, city, or destination.');
       return;
     }
     if (!coords) {
       setError('Set your start location by searching, clicking the map, or using GPS.');
       return;
     }
-    const cleanStartName = startLocationName.trim() || 'Trailhead Start';
+    const cleanStartName = startLocationName.trim() || 'Start Location';
     const parsedElev = elevationM.trim() ? Number(elevationM) : null;
     if (parsedElev !== null && (!Number.isFinite(parsedElev) || parsedElev < -500 || parsedElev > 9000)) {
       setError('Elevation must be between -500 m and 9,000 m.');
@@ -114,7 +114,7 @@ export function StartTrekModal({ profile, onClose, onCreated }: StartTrekModalPr
       });
       onCreated(trekId);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to start trek.');
+      setError(err instanceof Error ? err.message : 'Failed to start trip.');
       setSubmitting(false);
     }
   };
@@ -128,9 +128,9 @@ export function StartTrekModal({ profile, onClose, onCreated }: StartTrekModalPr
 
         <div className="flex items-center justify-between px-4 sm:px-6 py-4 border-b border-[#E2E8F0] sticky top-0 bg-white/95 backdrop-blur-sm z-10">
           <div>
-            <h2 className="text-lg sm:text-xl font-semibold text-[#0F172A]">Start a New Trek</h2>
+            <h2 className="text-lg sm:text-xl font-semibold text-[#0F172A]">Start a New Trip</h2>
             <p className="text-xs text-[#475569]">
-              Set your starting trailhead to begin logging waypoints, snaps, and field notes.
+              Set your starting location to begin logging stops, snaps, and notes along your route.
             </p>
           </div>
           <button
@@ -147,14 +147,14 @@ export function StartTrekModal({ profile, onClose, onCreated }: StartTrekModalPr
           <div className="lg:col-span-6 space-y-4">
             <div>
               <label className="block text-xs font-medium text-[#0F172A] mb-1.5">
-                Trek Title
+                Trip / Route Title
               </label>
               <input
                 type="text"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 maxLength={BLUEPRINT_LIMITS.TREK_TITLE_MAX}
-                placeholder="e.g., Mardi Himal Ridge Traverse"
+                placeholder="e.g., Mardi Himal Ridge or Coastal Road Trip"
                 className="w-full px-3.5 min-h-[44px] py-2.5 text-base sm:text-sm border border-[#E2E8F0] rounded-xl focus:outline-none focus:border-[#4F46E5]"
                 required
               />
@@ -163,14 +163,14 @@ export function StartTrekModal({ profile, onClose, onCreated }: StartTrekModalPr
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-medium text-[#0F172A] mb-1.5">
-                  Region / Range
+                  Region / Destination
                 </label>
                 <input
                   type="text"
                   value={region}
                   onChange={(e) => setRegion(e.target.value)}
                   maxLength={BLUEPRINT_LIMITS.REGION_MAX}
-                  placeholder="e.g., Annapurna, Nepal"
+                  placeholder="e.g., Annapurna, Nepal or Kyoto"
                   className="w-full px-3.5 min-h-[44px] py-2.5 text-base sm:text-sm border border-[#E2E8F0] rounded-xl focus:outline-none focus:border-[#4F46E5]"
                   required
                 />
@@ -178,7 +178,7 @@ export function StartTrekModal({ profile, onClose, onCreated }: StartTrekModalPr
 
               <div>
                 <label className="block text-xs font-medium text-[#0F172A] mb-1.5">
-                  Difficulty
+                  Difficulty / Pace
                 </label>
                 <select
                   value={difficulty}
@@ -197,14 +197,14 @@ export function StartTrekModal({ profile, onClose, onCreated }: StartTrekModalPr
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="sm:col-span-2">
                 <label className="block text-xs font-medium text-[#0F172A] mb-1.5">
-                  Start Trailhead Name
+                  Start Location Name
                 </label>
                 <input
                   type="text"
                   value={startLocationName}
                   onChange={(e) => setStartLocationName(e.target.value)}
                   maxLength={BLUEPRINT_LIMITS.LOCATION_NAME_MAX}
-                  placeholder="e.g., Kande Trailhead"
+                  placeholder="e.g., Kande Trailhead or Central Station"
                   className="w-full px-3.5 min-h-[44px] py-2.5 text-base sm:text-sm border border-[#E2E8F0] rounded-xl focus:outline-none focus:border-[#4F46E5]"
                 />
               </div>
@@ -226,14 +226,14 @@ export function StartTrekModal({ profile, onClose, onCreated }: StartTrekModalPr
 
             <div>
               <label className="block text-xs font-medium text-[#0F172A] mb-1.5">
-                Trailhead Field Note
+                Departure Note
               </label>
               <textarea
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
                 maxLength={BLUEPRINT_LIMITS.NOTE_MAX}
                 rows={3}
-                placeholder="Morning weather, pack weight, trail conditions at departure..."
+                placeholder="Weather, gear, itinerary highlights, or starting thoughts..."
                 className="w-full px-3.5 py-2.5 text-base sm:text-sm border border-[#E2E8F0] rounded-xl focus:outline-none focus:border-[#4F46E5] resize-none"
               />
             </div>
@@ -241,7 +241,7 @@ export function StartTrekModal({ profile, onClose, onCreated }: StartTrekModalPr
             <div>
               <div className="flex items-center justify-between mb-1.5">
                 <label className="text-xs font-medium text-[#0F172A]">
-                  Trailhead Snaps ({photos.length}/{BLUEPRINT_LIMITS.PHOTOS_PER_WAYPOINT_MAX})
+                  Starting Snaps ({photos.length}/{BLUEPRINT_LIMITS.PHOTOS_PER_WAYPOINT_MAX})
                 </label>
                 <div className="flex items-center gap-2">
                   <button
@@ -270,7 +270,7 @@ export function StartTrekModal({ profile, onClose, onCreated }: StartTrekModalPr
                 <div className="flex gap-2.5">
                   {photos.map((src, i) => (
                     <div key={i} className="relative w-24 h-20 rounded-xl overflow-hidden border border-[#E2E8F0]">
-                      <img src={src} alt="Trailhead snap" referrerPolicy="no-referrer" className="w-full h-full object-cover" />
+                      <img src={src} alt="Starting snap" referrerPolicy="no-referrer" className="w-full h-full object-cover" />
                       <button
                         type="button"
                         onClick={() => setPhotos((prev) => prev.filter((_, idx) => idx !== i))}
@@ -314,7 +314,7 @@ export function StartTrekModal({ profile, onClose, onCreated }: StartTrekModalPr
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
               <PlaceSearchBox
                 className="flex-1"
-                placeholder="Search starting trailhead..."
+                placeholder="Search starting location..."
                 onPlaceSelect={(place) => {
                   setCoords(place.location);
                   setStartLocationName(place.name);
@@ -343,7 +343,7 @@ export function StartTrekModal({ profile, onClose, onCreated }: StartTrekModalPr
               onMapClick={(clicked) => {
                 setCoords(clicked);
                 if (!startLocationName.trim()) {
-                  setStartLocationName('Trailhead Pin');
+                  setStartLocationName('Start Pin');
                 }
               }}
               heightClassName="h-[240px] sm:h-[310px]"
@@ -375,7 +375,7 @@ export function StartTrekModal({ profile, onClose, onCreated }: StartTrekModalPr
                 disabled={submitting}
                 className="px-5 min-h-[44px] py-2.5 text-sm font-medium text-white bg-gradient-to-r from-[#5B21B6] via-[#4F46E5] to-[#2563EB] hover:from-[#4C1D95] hover:via-[#4338CA] hover:to-[#1D4ED8] rounded-xl shadow-sm shadow-indigo-500/15 disabled:opacity-50 whitespace-nowrap shrink-0 cursor-pointer trail-transition"
               >
-                {submitting ? 'Starting Trek...' : 'Start Trek'}
+                {submitting ? 'Starting Trip...' : 'Start Trip'}
               </button>
             </div>
           </div>

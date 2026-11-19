@@ -99,7 +99,7 @@ export function PhotoLightbox({
         onClick={(e) => e.stopPropagation()}
       >
         <p className="text-sm leading-relaxed text-white/80">
-          {current.waypoint.note || 'Captured along the trail.'}
+          {current.waypoint.note || 'Captured along the route.'}
         </p>
         <p className="text-xs font-mono text-white/60 tabular-nums shrink-0">
           {formatCoords(current.waypoint.lat, current.waypoint.lng)}

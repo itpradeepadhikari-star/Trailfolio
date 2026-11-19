@@ -41,12 +41,12 @@ interface ActiveTrekWorkspaceProps {
 }
 
 const CATEGORIES: { value: WaypointCategory; label: string }[] = [
-  { value: 'viewpoint', label: 'Viewpoint' },
-  { value: 'camp', label: 'Camp' },
+  { value: 'viewpoint', label: 'Viewpoint / Landmark' },
+  { value: 'camp', label: 'Camp / Stay' },
   { value: 'summit', label: 'Summit / Pass' },
-  { value: 'rest', label: 'Tea House / Rest' },
+  { value: 'rest', label: 'Rest / Cafe Stop' },
   { value: 'finish', label: 'Final Destination' },
-  { value: 'trailhead', label: 'Trailhead' },
+  { value: 'trailhead', label: 'Start Point' },
 ];
 
 export function ActiveTrekWorkspace({
@@ -196,7 +196,7 @@ export function ActiveTrekWorkspace({
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 pb-5 sm:pb-6 border-b border-[#E2E8F0]">
         <div>
           <p className="text-xs text-[#475569] mb-1">
-            <span className="font-medium text-[#2563EB]">Active Expedition</span>
+            <span className="font-medium text-[#2563EB]">Active Journey</span>
             <span aria-hidden="true"> · </span>
             <span>{trek.region}</span>
             <span aria-hidden="true"> · </span>
@@ -213,7 +213,7 @@ export function ActiveTrekWorkspace({
             onClick={onBackToPortfolio}
             className="px-4 min-h-[44px] py-2 text-sm font-medium text-[#475569] hover:text-[#0F172A] whitespace-nowrap shrink-0 cursor-pointer"
           >
-            All Treks
+            All Trips
           </button>
           <button
             type="button"
@@ -221,7 +221,7 @@ export function ActiveTrekWorkspace({
             className="inline-flex items-center gap-2 px-4 min-h-[44px] py-2 text-sm font-medium text-white bg-gradient-to-r from-[#5B21B6] via-[#4F46E5] to-[#2563EB] hover:from-[#4C1D95] hover:via-[#4338CA] hover:to-[#1D4ED8] rounded-xl shadow-sm shadow-indigo-500/15 whitespace-nowrap shrink-0 cursor-pointer trail-transition"
           >
             <CheckCircle2 className="w-4 h-4" />
-            <span>Finish Trek</span>
+            <span>Finish Trip</span>
           </button>
         </div>
       </div>
@@ -234,7 +234,7 @@ export function ActiveTrekWorkspace({
           </p>
         </div>
         <div>
-          <p className="text-xs text-[#475569]">Waypoints Reached</p>
+          <p className="text-xs text-[#475569]">Locations Reached</p>
           <p className="text-xl font-semibold font-mono tabular-nums text-[#4F46E5]">
             {waypoints.length}
           </p>
@@ -276,7 +276,7 @@ export function ActiveTrekWorkspace({
             </div>
 
             <PlaceSearchBox
-              placeholder="Search reached pass, village, or peak..."
+              placeholder="Search reached landmark, town, pass, or peak..."
               onPlaceSelect={(place) => {
                 setWpCoords(place.location);
                 setWpName(place.name);
@@ -308,7 +308,7 @@ export function ActiveTrekWorkspace({
                   value={wpName}
                   onChange={(e) => setWpName(e.target.value)}
                   maxLength={BLUEPRINT_LIMITS.WAYPOINT_NAME_MAX}
-                  placeholder="Location name (e.g., High Camp)"
+                  placeholder="Location name (e.g., Sunset Point or Camp 1)"
                   className="w-full px-3.5 min-h-[44px] py-2 text-base sm:text-sm border border-[#E2E8F0] rounded-xl focus:outline-none focus:border-[#4F46E5]"
                 />
               </div>
@@ -344,7 +344,7 @@ export function ActiveTrekWorkspace({
               onChange={(e) => setWpNote(e.target.value)}
               maxLength={BLUEPRINT_LIMITS.NOTE_MAX}
               rows={3}
-              placeholder="Write a field note for this stop — views, terrain, water sources, camp thoughts..."
+              placeholder="Write a note for this stop — views, terrain, local tips, or travel memories..."
               className="w-full px-3.5 py-2.5 text-base sm:text-sm border border-[#E2E8F0] rounded-xl focus:outline-none focus:border-[#4F46E5] resize-none"
             />
 
@@ -423,7 +423,7 @@ export function ActiveTrekWorkspace({
           {/* Waypoint Timeline */}
           <div className="space-y-3">
             <h3 className="text-sm font-semibold text-[#0F172A]">
-              Recorded Trail Log ({waypoints.length})
+              Recorded Route Log ({waypoints.length})
             </h3>
             <div className="divide-y divide-[#E2E8F0] bg-white border border-[#E2E8F0] rounded-2xl overflow-hidden shadow-xs">
               {waypoints.map((wp, idx) => (
@@ -542,12 +542,12 @@ export function ActiveTrekWorkspace({
 
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-semibold text-[#0F172A]">
-                Complete & Archive Trek
+                Complete &amp; Archive Trip
               </h3>
               <button
                 type="button"
                 onClick={() => setShowFinishModal(false)}
-                aria-label="Close complete trek dialog"
+                aria-label="Close complete trip dialog"
                 className="min-w-[44px] min-h-[44px] inline-flex items-center justify-center rounded-xl text-[#475569] hover:text-[#0F172A] hover:bg-[#EEF1FA] cursor-pointer"
               >
                 <X className="w-4 h-4" />
@@ -555,7 +555,7 @@ export function ActiveTrekWorkspace({
             </div>
 
             <p className="text-sm text-[#475569] leading-relaxed">
-              Once completed, this expedition is permanently archived in your profile portfolio with{' '}
+              Once completed, this trip is permanently archived in your profile portfolio with{' '}
               <span className="font-mono tabular-nums text-[#0F172A] font-medium">
                 {formatDistance(trek.distanceKm)}
               </span>{' '}
@@ -564,14 +564,14 @@ export function ActiveTrekWorkspace({
 
             <div>
               <label className="block text-xs font-medium text-[#0F172A] mb-1.5">
-                Expedition Summary
+                Trip Summary
               </label>
               <textarea
                 value={finishSummary}
                 onChange={(e) => setFinishSummary(e.target.value)}
                 maxLength={BLUEPRINT_LIMITS.SUMMARY_MAX}
                 rows={4}
-                placeholder="Summarize highlights, trail conditions, gear notes, or favorite moments..."
+                placeholder="Summarize highlights, route conditions, gear tips, or favorite moments..."
                 className="w-full px-3.5 py-2.5 text-base sm:text-sm border border-[#E2E8F0] rounded-xl focus:outline-none focus:border-[#4F46E5] resize-none"
               />
             </div>
@@ -580,7 +580,7 @@ export function ActiveTrekWorkspace({
               <div>
                 <p className="text-sm font-medium text-[#0F172A]">Publish to Public Portfolio</p>
                 <p className="text-xs text-[#475569]">
-                  Anyone with your portfolio link can view this trek.
+                  Anyone with your portfolio link can view this trip.
                 </p>
               </div>
               <div className="flex items-center gap-1 p-1 bg-[#EEF1FA] border border-[#E2E8F0] rounded-xl shrink-0">
@@ -618,7 +618,7 @@ export function ActiveTrekWorkspace({
                 disabled={finishing}
                 className="px-5 min-h-[44px] py-2 text-sm font-medium text-white bg-gradient-to-r from-[#5B21B6] via-[#4F46E5] to-[#2563EB] hover:from-[#4C1D95] hover:via-[#4338CA] hover:to-[#1D4ED8] rounded-xl shadow-sm shadow-indigo-500/15 disabled:opacity-50 cursor-pointer trail-transition"
               >
-                {finishing ? 'Archiving...' : 'Complete Trek'}
+                {finishing ? 'Archiving...' : 'Complete Trip'}
               </button>
             </div>
           </form>
