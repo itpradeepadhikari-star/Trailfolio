@@ -1,6 +1,6 @@
 import type { Timestamp } from 'firebase/firestore';
 
-export type TrekDifficulty = 'Easy' | 'Moderate' | 'Challenging' | 'Alpine';
+export type TrekDifficulty = 'Easy' | 'Moderate' | 'Challenging' | 'Extreme';
 export type TrekStatus = 'active' | 'completed';
 export type WaypointCategory = 'trailhead' | 'camp' | 'viewpoint' | 'summit' | 'rest' | 'finish';
 
@@ -76,6 +76,25 @@ export interface Waypoint {
   note: string;
   photos: string[];
   reachedAt: Timestamp | null;
+}
+
+export type UserControlStatus = 'active' | 'suspended';
+export type UserControlRole = 'user' | 'moderator';
+
+export const SUPER_ADMIN_EMAIL = 'itpradeepadhikari@gmail.com';
+
+export function isSuperAdminUser(email: string | null | undefined, emailVerified?: boolean): boolean {
+  return Boolean(email && email.toLowerCase() === SUPER_ADMIN_EMAIL && emailVerified !== false);
+}
+
+export interface UserControl {
+  uid: string;
+  status: UserControlStatus;
+  role: UserControlRole;
+  moderationNote: string;
+  updatedBy: string;
+  createdAt: Timestamp | null;
+  updatedAt: Timestamp | null;
 }
 
 export interface LatLngLiteral {

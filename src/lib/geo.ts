@@ -85,6 +85,47 @@ export function formatTimestampTime(ts: Timestamp | null | undefined): string {
   }
 }
 
+function toDateSafe(ts: Timestamp | null | undefined): Date | null {
+  if (!ts) return null;
+  try {
+    if (typeof ts.toDate === 'function') {
+      const date = ts.toDate();
+      return Number.isNaN(date.getTime()) ? null : date;
+    }
+  } catch {
+    // Ignore invalid/pending timestamp conversion errors
+  }
+  return null;
+}
+
+export function calculateTripDays(
+  startedAt: Timestamp | null | undefined,
+  waypoints: Array<{ reachedAt?: Timestamp | null }>
+): number | null {
+  const startDate = toDateSafe(startedAt) ?? toDateSafe(waypoints[0]?.reachedAt);
+  if (!startDate) return null;
+
+  let lastDate: Date | null = null;
+  for (let i = waypoints.length - 1; i >= 0; i -= 1) {
+    const candidate = toDateSafe(waypoints[i]?.reachedAt);
+    if (candidate) {
+      lastDate = candidate;
+      break;
+    }
+  }
+  if (!lastDate) return 1;
+
+  const startUtcDay = Date.UTC(startDate.getFullYear(), startDate.getMonth(), startDate.getDate());
+  const endUtcDay = Date.UTC(lastDate.getFullYear(), lastDate.getMonth(), lastDate.getDate());
+  const diffDays = Math.round((endUtcDay - startUtcDay) / (24 * 60 * 60 * 1000));
+  return Math.max(1, diffDays + 1);
+}
+
+export function formatTripDays(days: number | null | undefined): string {
+  if (days === null || days === undefined || !Number.isFinite(days)) return '—';
+  return `${days} ${days === 1 ? 'day' : 'days'}`;
+}
+
 /**
  * Compresses an uploaded/captured image into a compact JPEG data URL
  * strictly under maxChars so it fits safely inside Firestore limits.

@@ -22,10 +22,14 @@ export default defineConfig(() => {
         ],
         manifest: {
           id: '/',
-          name: 'Trailfolio — Trip, Hike & Trek Portfolio',
-          short_name: 'Trailfolio',
+          name: 'TripFolio — Trip, Hike & Trek Portfolio',
+          short_name: 'TripFolio',
           description:
             'A trip portfolio and route logbook for trekkers, hikers, and travelers to map waypoints, capture snaps, record notes, and share journeys publicly.',
+          lang: 'en',
+          dir: 'ltr',
+          categories: ['travel', 'navigation', 'lifestyle'],
+          prefer_related_applications: false,
           theme_color: '#4F46E5',
           background_color: '#F6F7FB',
           display: 'standalone',

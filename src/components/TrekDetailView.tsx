@@ -4,28 +4,42 @@ import {
   Check,
   Eye,
   EyeOff,
+  Pencil,
   Share2,
   Trash2,
 } from 'lucide-react';
 import {
+  DIFFICULTY_CONFIG,
+  DIFFICULTY_LEVELS,
+  normalizeDifficulty,
+} from '../lib/difficulty';
+import {
+  calculateTripDays,
   formatCoords,
   formatDistance,
   formatElevation,
   formatTimestamp,
   formatTimestampTime,
+  formatTripDays,
 } from '../lib/geo';
 import {
   deleteTrekAndWaypoints,
   toggleTrekVisibility,
+  updateTrekDifficulty,
 } from '../services/trailService';
-import type { Trek, Waypoint } from '../types/trail';
+import type { Trek, TrekDifficulty, Waypoint } from '../types/trail';
+import { DifficultyBadge } from './DifficultyBadge';
+import { EditTrekModal } from './EditTrekModal';
+import { EditWaypointModal } from './EditWaypointModal';
 import { TrailMap } from './maps/TrailMap';
 import { PhotoLightbox, type LightboxItem } from './PhotoLightbox';
+import { StopWeatherPreview } from './WeatherPreviewCard';
 
 interface TrekDetailViewProps {
   trek: Trek;
   waypoints: Waypoint[];
   isOwner: boolean;
+  isSuperAdmin?: boolean;
   onBack: () => void;
   onResumeActive: (trekId: string) => void;
   onOpenTrekker: (handle: string) => void;
@@ -36,24 +50,33 @@ export function TrekDetailView({
   trek,
   waypoints,
   isOwner,
+  isSuperAdmin = false,
   onBack,
   onResumeActive,
   onOpenTrekker,
   onDeleted,
 }: TrekDetailViewProps) {
+  const canModerate = isOwner || isSuperAdmin;
   const [selectedWpId, setSelectedWpId] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [togglingVis, setTogglingVis] = useState(false);
+  const [savingDifficulty, setSavingDifficulty] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [showEditTrek, setShowEditTrek] = useState(false);
+  const [editingWaypoint, setEditingWaypoint] = useState<Waypoint | null>(null);
   const [lightboxState, setLightboxState] = useState<{
     items: LightboxItem[];
     index: number;
   } | null>(null);
 
+  const normalizedDifficulty = normalizeDifficulty(trek.difficulty);
+  const difficultyCfg = DIFFICULTY_CONFIG[normalizedDifficulty];
+
   const allPhotos: LightboxItem[] = waypoints.flatMap((wp) =>
     (wp.photos || []).map((photoUrl) => ({ photoUrl, waypoint: wp }))
   );
+  const totalDays = calculateTripDays(trek.startedAt, waypoints);
 
   const openPhotoInLightbox = (photoUrl: string, waypoint: Waypoint) => {
     const idx = allPhotos.findIndex(
@@ -82,6 +105,16 @@ export function TrekDetailView({
       await toggleTrekVisibility(trek, waypoints, !trek.isPublic);
     } finally {
       setTogglingVis(false);
+    }
+  };
+
+  const handleChangeDifficulty = async (level: TrekDifficulty) => {
+    if (!canModerate || level === normalizedDifficulty || savingDifficulty) return;
+    setSavingDifficulty(true);
+    try {
+      await updateTrekDifficulty(trek.id, level);
+    } finally {
+      setSavingDifficulty(false);
     }
   };
 
@@ -119,6 +152,17 @@ export function TrekDetailView({
             </button>
           )}
 
+          {canModerate && (
+            <button
+              type="button"
+              onClick={() => setShowEditTrek(true)}
+              className="inline-flex items-center gap-1.5 px-3.5 min-h-[40px] py-2 text-xs font-medium text-[#0F172A] bg-white border border-[#E2E8F0] rounded-xl hover:bg-[#EEF2FF] hover:border-[#C7D2FE] whitespace-nowrap shrink-0 cursor-pointer trail-transition"
+            >
+              <Pencil className="w-3.5 h-3.5 text-[#4F46E5]" />
+              <span>Edit Trip</span>
+            </button>
+          )}
+
           {isOwner && trek.status === 'active' && (
             <button
               type="button"
@@ -129,7 +173,7 @@ export function TrekDetailView({
             </button>
           )}
 
-          {isOwner && trek.status === 'completed' && (
+          {canModerate && (trek.status === 'completed' || isSuperAdmin) && (
             <button
               type="button"
               disabled={togglingVis}
@@ -141,7 +185,7 @@ export function TrekDetailView({
             </button>
           )}
 
-          {isOwner && !confirmDelete && (
+          {canModerate && !confirmDelete && (
             <button
               type="button"
               onClick={() => setConfirmDelete(true)}
@@ -152,7 +196,7 @@ export function TrekDetailView({
             </button>
           )}
 
-          {isOwner && confirmDelete && (
+          {canModerate && confirmDelete && (
             <div className="flex items-center gap-2">
               <button
                 type="button"
@@ -175,10 +219,9 @@ export function TrekDetailView({
       </div>
 
       <header className="pb-6 sm:pb-8 border-b border-[#E2E8F0]">
-        <p className="text-xs text-[#475569] mb-2">
+        <div className="flex flex-wrap items-center gap-2.5 text-xs text-[#475569] mb-3">
+          <DifficultyBadge difficulty={trek.difficulty} size="md" showPrefix />
           <span>{trek.region}</span>
-          <span aria-hidden="true"> · </span>
-          <span>{trek.difficulty}</span>
           <span aria-hidden="true"> · </span>
           <span>{formatTimestamp(trek.completedAt || trek.startedAt)}</span>
           <span aria-hidden="true"> · </span>
@@ -189,7 +232,7 @@ export function TrekDetailView({
           >
             {trek.ownerName} (@{trek.ownerHandle})
           </button>
-        </p>
+        </div>
 
         <h1 className="text-3xl sm:text-4xl md:text-5xl font-semibold tracking-tight text-[#0F172A] max-w-3xl [text-wrap:balance]">
           {trek.title}
@@ -201,7 +244,13 @@ export function TrekDetailView({
           </p>
         )}
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-5 sm:gap-6 mt-6 sm:mt-8 pt-5 sm:pt-6 border-t border-[#E2E8F0]">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-5 sm:gap-6 mt-6 sm:mt-8 pt-5 sm:pt-6 border-t border-[#E2E8F0]">
+          <div>
+            <p className="text-xs text-[#475569]">Difficulty Level</p>
+            <p className={`text-2xl font-semibold ${difficultyCfg.textClass}`}>
+              {normalizedDifficulty}
+            </p>
+          </div>
           <div>
             <p className="text-xs text-[#475569]">Total Distance</p>
             <p className="text-2xl font-semibold font-mono tabular-nums text-[#0F172A]">
@@ -212,6 +261,12 @@ export function TrekDetailView({
             <p className="text-xs text-[#475569]">Max Elevation</p>
             <p className="text-2xl font-semibold font-mono tabular-nums text-[#0F172A]">
               {formatElevation(trek.maxElevationM)}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs text-[#475569]">Total Days</p>
+            <p className="text-2xl font-semibold font-mono tabular-nums text-[#0F172A]">
+              {formatTripDays(totalDays)}
             </p>
           </div>
           <div>
@@ -227,6 +282,45 @@ export function TrekDetailView({
             </p>
           </div>
         </div>
+
+        {canModerate && (
+          <div className="mt-5 pt-5 border-t border-[#E2E8F0] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <p className="text-xs font-medium text-[#0F172A]">Difficulty Level</p>
+              <p className="text-[11px] text-[#475569]">
+                {savingDifficulty ? 'Saving difficulty rating...' : 'Select the overall rating for this trip'}
+              </p>
+            </div>
+            <div
+              className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2"
+              role="radiogroup"
+              aria-label="Trip Difficulty Level"
+            >
+              {DIFFICULTY_LEVELS.map((level) => {
+                const cfg = DIFFICULTY_CONFIG[level];
+                const active = normalizedDifficulty === level;
+                return (
+                  <button
+                    key={level}
+                    type="button"
+                    role="radio"
+                    aria-checked={active}
+                    disabled={savingDifficulty}
+                    onClick={() => void handleChangeDifficulty(level)}
+                    className={`inline-flex items-center justify-center gap-1.5 px-3.5 min-h-[38px] py-1.5 text-xs font-medium rounded-xl border cursor-pointer disabled:opacity-60 trail-transition ${
+                      active
+                        ? `${cfg.activeButtonClass} shadow-xs`
+                        : 'bg-white text-[#475569] border-[#E2E8F0] hover:border-[#C7D2FE] hover:text-[#0F172A]'
+                    }`}
+                  >
+                    <span className={`w-1.5 h-1.5 rounded-xs shrink-0 ${cfg.dotClass}`} aria-hidden="true" />
+                    <span>{level}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </header>
 
       <section className="py-6 sm:py-8">
@@ -276,7 +370,27 @@ export function TrekDetailView({
                     {formatCoords(wp.lat, wp.lng)}
                   </p>
                 </div>
+
+                {canModerate && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setEditingWaypoint(wp);
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3 min-h-[38px] py-1.5 text-xs font-medium text-[#4F46E5] bg-[#F6F7FB] border border-[#E2E8F0] rounded-xl hover:bg-[#EEF2FF] hover:border-[#C7D2FE] self-start shrink-0 cursor-pointer trail-transition"
+                  >
+                    <Pencil className="w-3.5 h-3.5" />
+                    <span>Edit Stop &amp; Snaps</span>
+                  </button>
+                )}
               </div>
+
+              <StopWeatherPreview
+                lat={wp.lat}
+                lng={wp.lng}
+                elevationM={wp.elevationM}
+              />
 
               {wp.note && (
                 <p className="mt-4 text-[15px] text-[#334155] leading-relaxed max-w-3xl">
@@ -317,6 +431,23 @@ export function TrekDetailView({
           currentIndex={lightboxState.index}
           onNavigate={(index) => setLightboxState({ ...lightboxState, index })}
           onClose={() => setLightboxState(null)}
+        />
+      )}
+
+      {showEditTrek && (
+        <EditTrekModal
+          trek={trek}
+          waypoints={waypoints}
+          onClose={() => setShowEditTrek(false)}
+        />
+      )}
+
+      {editingWaypoint && (
+        <EditWaypointModal
+          trek={trek}
+          waypoints={waypoints}
+          waypoint={editingWaypoint}
+          onClose={() => setEditingWaypoint(null)}
         />
       )}
     </div>

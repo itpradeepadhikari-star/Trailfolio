@@ -17,6 +17,7 @@ import {
 } from '../lib/geo';
 import { fetchPublicTrekWaypoints } from '../services/trailService';
 import type { PublicProfile, Trek, Waypoint } from '../types/trail';
+import { DifficultyBadge } from './DifficultyBadge';
 import { TrailMap } from './maps/TrailMap';
 import { PhotoLightbox, type LightboxItem } from './PhotoLightbox';
 
@@ -315,11 +316,10 @@ export function RankingView({
                     </div>
 
                     <div className="min-w-0 flex-1 space-y-2">
-                      <div className="space-y-0.5">
-                        <p className="text-xs text-[#475569]">
+                      <div className="space-y-1">
+                        <div className="flex flex-wrap items-center gap-2 text-xs text-[#475569]">
+                          <DifficultyBadge difficulty={trek.difficulty} size="sm" />
                           <span>{trek.region}</span>
-                          <span aria-hidden="true"> · </span>
-                          <span>{trek.difficulty}</span>
                           <span aria-hidden="true"> · </span>
                           <span className={trek.status === 'active' ? 'text-[#2563EB] font-medium' : ''}>
                             {trek.status === 'completed' ? 'Completed' : 'In Progress'}
@@ -330,7 +330,7 @@ export function RankingView({
                               ? `Finished ${formatTimestamp(trek.completedAt)}`
                               : `Started ${formatTimestamp(trek.startedAt)}`}
                           </span>
-                        </p>
+                        </div>
                         <h4 className="text-base font-semibold text-[#0F172A] leading-snug">
                           {trek.title}
                         </h4>

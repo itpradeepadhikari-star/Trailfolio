@@ -53,7 +53,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
               onClick={() => window.location.reload()}
               className="px-4 py-2.5 text-sm font-medium bg-gradient-to-r from-[#5B21B6] via-[#4F46E5] to-[#2563EB] text-white rounded-lg hover:from-[#4C1D95] hover:via-[#4338CA] hover:to-[#1D4ED8] trail-transition cursor-pointer"
             >
-              Reload Trailfolio
+              Reload TripFolio
             </button>
           </div>
         </div>

@@ -1,6 +1,7 @@
 import { Mountain } from 'lucide-react';
 import { formatDistance, formatElevation, formatTimestamp } from '../lib/geo';
 import type { Trek } from '../types/trail';
+import { DifficultyBadge } from './DifficultyBadge';
 
 interface TrekCardProps {
   trek: Trek;
@@ -43,23 +44,24 @@ export function TrekCard({
 
       <div className="p-5 flex-1 flex flex-col justify-between gap-4">
         <div>
-          <p className="text-xs text-[#475569] mb-1.5 truncate">
-            <span>{trek.region}</span>
-            <span aria-hidden="true"> · </span>
-            <span>{trek.difficulty}</span>
-            {trek.status === 'active' && (
-              <>
-                <span aria-hidden="true"> · </span>
-                <span className="text-[#2563EB] font-medium">In Progress</span>
-              </>
-            )}
-            {!trek.isPublic && (
-              <>
-                <span aria-hidden="true"> · </span>
-                <span>Private</span>
-              </>
-            )}
-          </p>
+          <div className="flex items-center justify-between gap-2 mb-2.5">
+            <p className="text-xs text-[#475569] truncate">
+              <span>{trek.region}</span>
+              {trek.status === 'active' && (
+                <>
+                  <span aria-hidden="true"> · </span>
+                  <span className="text-[#2563EB] font-medium">In Progress</span>
+                </>
+              )}
+              {!trek.isPublic && (
+                <>
+                  <span aria-hidden="true"> · </span>
+                  <span>Private</span>
+                </>
+              )}
+            </p>
+            <DifficultyBadge difficulty={trek.difficulty} size="sm" />
+          </div>
 
           <button
             type="button"

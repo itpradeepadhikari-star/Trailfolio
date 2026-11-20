@@ -124,7 +124,7 @@
         "difficulty": {
           "type": "string",
           "description": "Trail grade.",
-          "enum": ["Easy", "Moderate", "Challenging", "Alpine"]
+          "enum": ["Easy", "Moderate", "Challenging", "Extreme"]
         },
         "status": {
           "type": "string",
@@ -313,6 +313,61 @@
         "photos",
         "reachedAt"
       ]
+    },
+    "UserControl": {
+      "title": "UserControl",
+      "description": "Super-admin moderation state, role assignment, and suspension controls for a user account.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "Target Firebase Auth UID.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "status": {
+          "type": "string",
+          "description": "Account standing.",
+          "enum": ["active", "suspended"]
+        },
+        "role": {
+          "type": "string",
+          "description": "Assigned platform role.",
+          "enum": ["user", "moderator"]
+        },
+        "moderationNote": {
+          "type": "string",
+          "description": "Reason or internal note recorded by super admin.",
+          "maxLength": 300
+        },
+        "updatedBy": {
+          "type": "string",
+          "description": "Super admin UID that made the update.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server creation timestamp."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server last update timestamp."
+        }
+      },
+      "required": [
+        "uid",
+        "status",
+        "role",
+        "moderationNote",
+        "updatedBy",
+        "createdAt",
+        "updatedAt"
+      ]
     }
   },
   "firestore": {
@@ -321,6 +376,12 @@
         "$ref": "#/entities/PublicProfile"
       },
       "description": "Publicly readable trekker portfolio profiles without PII."
+    },
+    "/userControls/{userId}": {
+      "schema": {
+        "$ref": "#/entities/UserControl"
+      },
+      "description": "Super-admin user moderation status and role controls."
     },
     "/treks/{trekId}": {
       "schema": {

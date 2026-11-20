@@ -35,6 +35,15 @@ service cloud.firestore {
       return isVerifiedUser() && request.auth.uid == userId;
     }
 
+    function isSuperAdmin() {
+      return isVerifiedUser() && request.auth.token.email == 'itpradeepadhikari@gmail.com';
+    }
+
+    function isNotSuspended() {
+      return !exists(/databases/$(database)/documents/userControls/$(request.auth.uid))
+        || get(/databases/$(database)/documents/userControls/$(request.auth.uid)).data.status != 'suspended';
+    }
+
     // --- Entity Validation Blueprints ---
     function isValidPublicProfile(data, userId) {
       return data.keys().hasAll([
@@ -46,7 +55,8 @@ service cloud.firestore {
           'completedTreksCount', 'totalDistanceKm', 'createdAt', 'updatedAt'
         ])
         && data.uid == userId
-        && data.uid == request.auth.uid
+        && isValidId(data.uid)
+        && (data.uid == request.auth.uid || isSuperAdmin())
         && data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 60
         && isValidHandle(data.handle)
         && data.bio is string && data.bio.size() <= 300
@@ -54,6 +64,24 @@ service cloud.firestore {
         && data.avatarUrl is string && data.avatarUrl.size() <= 350000
         && data.completedTreksCount is number && data.completedTreksCount >= 0 && data.completedTreksCount <= 10000
         && data.totalDistanceKm is number && data.totalDistanceKm >= 0 && data.totalDistanceKm <= 1000000
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidUserControl(data, userId) {
+      return data.keys().hasAll([
+          'uid', 'status', 'role', 'moderationNote', 'updatedBy', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'uid', 'status', 'role', 'moderationNote', 'updatedBy', 'createdAt', 'updatedAt'
+        ])
+        && data.uid == userId
+        && isValidId(data.uid)
+        && data.status in ['active', 'suspended']
+        && data.role in ['user', 'moderator']
+        && data.moderationNote is string && data.moderationNote.size() <= 300
+        && data.updatedBy == request.auth.uid
+        && isValidId(data.updatedBy)
         && data.createdAt is timestamp
         && data.updatedAt is timestamp;
     }
@@ -73,13 +101,14 @@ service cloud.firestore {
         ])
         && data.id == trekId
         && isValidId(data.id)
-        && data.ownerId == request.auth.uid
+        && isValidId(data.ownerId)
+        && (data.ownerId == request.auth.uid || isSuperAdmin())
         && data.ownerName is string && data.ownerName.size() >= 1 && data.ownerName.size() <= 60
         && isValidHandle(data.ownerHandle)
         && data.title is string && data.title.size() >= 1 && data.title.size() <= 100
         && data.region is string && data.region.size() >= 1 && data.region.size() <= 80
         && data.summary is string && data.summary.size() <= 1000
-        && data.difficulty in ['Easy', 'Moderate', 'Challenging', 'Alpine']
+        && data.difficulty in ['Easy', 'Moderate', 'Challenging', 'Extreme', 'Alpine']
         && data.status in ['active', 'completed']
         && data.isPublic is bool
         && data.startLocationName is string && data.startLocationName.size() >= 1 && data.startLocationName.size() <= 120
@@ -118,7 +147,8 @@ service cloud.firestore {
         && isValidId(data.id)
         && data.trekId == trekId
         && isValidId(data.trekId)
-        && data.ownerId == request.auth.uid
+        && isValidId(data.ownerId)
+        && (data.ownerId == request.auth.uid || isSuperAdmin())
         && data.trekIsPublic is bool
         && data.orderIndex is number && data.orderIndex >= 0 && data.orderIndex <= 500
         && data.name is string && data.name.size() >= 1 && data.name.size() <= 120
@@ -140,9 +170,10 @@ service cloud.firestore {
       allow create: if isOwner(userId)
         && isValidId(userId)
         && isValidPublicProfile(incoming(), userId)
+        && incoming().uid == request.auth.uid
         && incoming().createdAt == request.time
         && incoming().updatedAt == request.time;
-      allow update: if isOwner(userId)
+      allow update: if (isOwner(userId) || isSuperAdmin())
         && isValidId(userId)
         && isValidPublicProfile(incoming(), userId)
         && incoming().uid == existing().uid
@@ -152,7 +183,28 @@ service cloud.firestore {
           'displayName', 'handle', 'bio', 'homeBase', 'avatarUrl',
           'completedTreksCount', 'totalDistanceKm', 'updatedAt'
         ]);
-      allow delete: if false;
+      allow delete: if (isOwner(userId) || isSuperAdmin()) && isValidId(userId);
+    }
+
+    // Super-admin moderation controls for normal users
+    match /userControls/{userId} {
+      allow get: if isValidId(userId) && (isOwner(userId) || isSuperAdmin());
+      allow list: if isSuperAdmin();
+      allow create: if isSuperAdmin()
+        && isValidId(userId)
+        && isValidUserControl(incoming(), userId)
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isSuperAdmin()
+        && isValidId(userId)
+        && isValidUserControl(incoming(), userId)
+        && incoming().uid == existing().uid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly([
+          'status', 'role', 'moderationNote', 'updatedBy', 'updatedAt'
+        ]);
+      allow delete: if isSuperAdmin() && isValidId(userId);
     }
 
     // Trek expeditions
@@ -160,13 +212,18 @@ service cloud.firestore {
       allow get: if isValidId(trekId) && (
         resource == null ||
         existing().isPublic == true ||
-        (isSignedIn() && existing().ownerId == request.auth.uid)
+        (isSignedIn() && existing().ownerId == request.auth.uid) ||
+        isSuperAdmin()
       );
-      allow list: if resource.data.isPublic == true || (isSignedIn() && resource.data.ownerId == request.auth.uid);
+      allow list: if resource.data.isPublic == true
+        || (isSignedIn() && resource.data.ownerId == request.auth.uid)
+        || isSuperAdmin();
 
       allow create: if isVerifiedUser()
+        && isNotSuspended()
         && isValidId(trekId)
         && isValidTrek(incoming(), trekId)
+        && incoming().ownerId == request.auth.uid
         && incoming().status == 'active'
         && incoming().completedAt == null
         && incoming().startedAt == request.time
@@ -175,19 +232,20 @@ service cloud.firestore {
       allow update: if isVerifiedUser()
         && isValidId(trekId)
         && isValidTrek(incoming(), trekId)
-        && existing().ownerId == request.auth.uid
+        && ((existing().ownerId == request.auth.uid && isNotSuspended()) || isSuperAdmin())
         && incoming().ownerId == existing().ownerId
         && incoming().id == existing().id
         && incoming().startedAt == existing().startedAt
         && incoming().updatedAt == request.time
         && (
-          // Action 1: Update active trek metrics & metadata
+          // Action 1: Update active trek metrics, start/end locations & metadata
           (
             existing().status == 'active'
             && incoming().status == 'active'
             && incoming().completedAt == null
             && incoming().diff(existing()).affectedKeys().hasOnly([
               'title', 'region', 'summary', 'difficulty', 'isPublic',
+              'startLocationName', 'startLat', 'startLng',
               'endLocationName', 'endLat', 'endLng', 'distanceKm',
               'maxElevationM', 'waypointCount', 'photoCount', 'coverPhotoDataUrl', 'updatedAt'
             ])
@@ -200,59 +258,71 @@ service cloud.firestore {
             && incoming().completedAt == request.time
             && incoming().diff(existing()).affectedKeys().hasOnly([
               'title', 'region', 'summary', 'difficulty', 'status', 'isPublic',
+              'startLocationName', 'startLat', 'startLng',
               'endLocationName', 'endLat', 'endLng', 'distanceKm',
               'maxElevationM', 'waypointCount', 'photoCount', 'coverPhotoDataUrl',
               'completedAt', 'updatedAt'
             ])
           )
           ||
-          // Action 3: Toggle public portfolio visibility on completed trek
+          // Action 3: Owner or Super Admin edit of completed trek details, route metrics & visibility
           (
             existing().status == 'completed'
             && incoming().status == 'completed'
             && incoming().completedAt == existing().completedAt
-            && incoming().diff(existing()).affectedKeys().hasOnly(['isPublic', 'updatedAt'])
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'title', 'region', 'summary', 'difficulty', 'isPublic',
+              'startLocationName', 'startLat', 'startLng',
+              'endLocationName', 'endLat', 'endLng', 'distanceKm',
+              'maxElevationM', 'waypointCount', 'photoCount', 'coverPhotoDataUrl', 'updatedAt'
+            ])
           )
         );
 
       allow delete: if isVerifiedUser()
         && isValidId(trekId)
-        && existing().ownerId == request.auth.uid;
+        && (existing().ownerId == request.auth.uid || isSuperAdmin());
 
       // Subcollection: Ordered waypoints with notes and compressed photo snaps
       match /waypoints/{waypointId} {
         allow get: if isValidId(trekId) && isValidId(waypointId) && (
           resource == null ||
           existing().trekIsPublic == true ||
-          (isSignedIn() && existing().ownerId == request.auth.uid)
+          (isSignedIn() && existing().ownerId == request.auth.uid) ||
+          isSuperAdmin()
         );
-        allow list: if resource.data.trekIsPublic == true || (isSignedIn() && resource.data.ownerId == request.auth.uid);
+        allow list: if resource.data.trekIsPublic == true
+          || (isSignedIn() && resource.data.ownerId == request.auth.uid)
+          || isSuperAdmin();
 
         allow create: if isVerifiedUser()
+          && isNotSuspended()
           && isValidId(trekId)
           && isValidId(waypointId)
           && isValidWaypoint(incoming(), trekId, waypointId)
+          && incoming().ownerId == request.auth.uid
           && incoming().reachedAt == request.time
           && existsAfter(/databases/$(database)/documents/treks/$(trekId))
           && getAfter(/databases/$(database)/documents/treks/$(trekId)).data.ownerId == request.auth.uid
-          && getAfter(/databases/$(database)/documents/treks/$(trekId)).data.status == 'active'
+          && getAfter(/databases/$(database)/documents/treks/$(trekId)).data.status in ['active', 'completed']
           && incoming().trekIsPublic == getAfter(/databases/$(database)/documents/treks/$(trekId)).data.isPublic;
 
         allow update: if isVerifiedUser()
           && isValidId(trekId)
           && isValidId(waypointId)
           && isValidWaypoint(incoming(), trekId, waypointId)
-          && existing().ownerId == request.auth.uid
+          && ((existing().ownerId == request.auth.uid && isNotSuspended()) || isSuperAdmin())
           && incoming().ownerId == existing().ownerId
           && incoming().id == existing().id
           && incoming().trekId == existing().trekId
+          && incoming().orderIndex == existing().orderIndex
           && incoming().reachedAt == existing().reachedAt
           && (
-            // Action 1: Edit waypoint note/details while trek is active
+            // Action 1: Owner or Super Admin edit of waypoint location, snaps, and details
             (
-              get(/databases/$(database)/documents/treks/$(trekId)).data.ownerId == request.auth.uid
-              && get(/databases/$(database)/documents/treks/$(trekId)).data.status == 'active'
-              && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'category', 'elevationM', 'note', 'photos'])
+              (get(/databases/$(database)/documents/treks/$(trekId)).data.ownerId == request.auth.uid || isSuperAdmin())
+              && get(/databases/$(database)/documents/treks/$(trekId)).data.status in ['active', 'completed']
+              && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'category', 'lat', 'lng', 'elevationM', 'note', 'photos'])
             )
             ||
             // Action 2: Atomic visibility sync with parent trek via writeBatch
@@ -265,7 +335,7 @@ service cloud.firestore {
         allow delete: if isVerifiedUser()
           && isValidId(trekId)
           && isValidId(waypointId)
-          && existing().ownerId == request.auth.uid;
+          && (existing().ownerId == request.auth.uid || isSuperAdmin());
       }
     }
   }

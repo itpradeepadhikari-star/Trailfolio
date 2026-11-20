@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import {
   Camera,
   CheckCircle2,
   LocateFixed,
   MapPin,
+  Pencil,
   Plus,
   Trash2,
   Upload,
@@ -21,6 +22,7 @@ import {
   deleteWaypointFromActiveTrek,
   finishTrek,
 } from '../services/trailService';
+import { fetchCoordinateElevation } from '../services/weatherService';
 import {
   BLUEPRINT_LIMITS,
   type LatLngLiteral,
@@ -29,9 +31,13 @@ import {
   type WaypointCategory,
 } from '../types/trail';
 import { CameraSnapModal } from './CameraSnapModal';
+import { DifficultyBadge } from './DifficultyBadge';
+import { EditTrekModal } from './EditTrekModal';
+import { EditWaypointModal } from './EditWaypointModal';
 import { PlaceSearchBox } from './maps/PlaceSearchBox';
 import { TrailMap } from './maps/TrailMap';
 import { PhotoLightbox, type LightboxItem } from './PhotoLightbox';
+import { StopWeatherPreview } from './WeatherPreviewCard';
 
 interface ActiveTrekWorkspaceProps {
   trek: Trek;
@@ -68,7 +74,22 @@ export function ActiveTrekWorkspace({
   const [manualLat, setManualLat] = useState('');
   const [manualLng, setManualLng] = useState('');
   const [savingWp, setSavingWp] = useState(false);
+  const [elevLoading, setElevLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const elevReqRef = useRef(0);
+
+  const autoFetchElevation = async (lat: number, lng: number) => {
+    const reqId = ++elevReqRef.current;
+    setElevLoading(true);
+    setWpElev('');
+    const elev = await fetchCoordinateElevation(lat, lng);
+    if (elevReqRef.current === reqId) {
+      setElevLoading(false);
+      if (elev !== null) {
+        setWpElev(String(elev));
+      }
+    }
+  };
 
   const handleApplyManualCoords = () => {
     const lat = Number(manualLat);
@@ -77,18 +98,23 @@ export function ActiveTrekWorkspace({
       setError('Enter valid latitude (-90 to 90) and longitude (-180 to 180).');
       return;
     }
+    const roundedLat = Number(lat.toFixed(6));
+    const roundedLng = Number(lng.toFixed(6));
     setError(null);
-    setWpCoords({ lat: Number(lat.toFixed(6)), lng: Number(lng.toFixed(6)) });
+    setWpCoords({ lat: roundedLat, lng: roundedLng });
     if (!wpName.trim()) {
       setWpName(`Waypoint #${waypoints.length + 1}`);
     }
     setShowManualCoords(false);
+    void autoFetchElevation(roundedLat, roundedLng);
   };
 
   const [showFinishModal, setShowFinishModal] = useState(false);
   const [finishSummary, setFinishSummary] = useState(trek.summary || '');
   const [finishIsPublic, setFinishIsPublic] = useState(trek.isPublic);
   const [finishing, setFinishing] = useState(false);
+  const [showEditTrek, setShowEditTrek] = useState(false);
+  const [editingWaypoint, setEditingWaypoint] = useState<Waypoint | null>(null);
 
   const [lightboxState, setLightboxState] = useState<{
     items: LightboxItem[];
@@ -118,12 +144,15 @@ export function ActiveTrekWorkspace({
     setError(null);
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        setWpCoords({
-          lat: Number(pos.coords.latitude.toFixed(6)),
-          lng: Number(pos.coords.longitude.toFixed(6)),
-        });
+        const lat = Number(pos.coords.latitude.toFixed(6));
+        const lng = Number(pos.coords.longitude.toFixed(6));
+        setWpCoords({ lat, lng });
         if (pos.coords.altitude !== null && Number.isFinite(pos.coords.altitude)) {
+          elevReqRef.current += 1;
+          setElevLoading(false);
           setWpElev(String(Math.round(pos.coords.altitude)));
+        } else {
+          void autoFetchElevation(lat, lng);
         }
         if (!wpName.trim()) {
           setWpName(`Checkpoint #${waypoints.length + 1}`);
@@ -213,19 +242,26 @@ export function ActiveTrekWorkspace({
     <div className="max-w-[1360px] mx-auto px-4 sm:px-6 py-6 sm:py-8">
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 pb-5 sm:pb-6 border-b border-[#E2E8F0]">
         <div>
-          <p className="text-xs text-[#475569] mb-1">
+          <div className="flex flex-wrap items-center gap-2 text-xs text-[#475569] mb-1.5">
+            <DifficultyBadge difficulty={trek.difficulty} size="sm" />
             <span className="font-medium text-[#2563EB]">Active Journey</span>
             <span aria-hidden="true"> · </span>
             <span>{trek.region}</span>
-            <span aria-hidden="true"> · </span>
-            <span>{trek.difficulty}</span>
-          </p>
+          </div>
           <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-[#0F172A]">
             {trek.title}
           </h1>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2.5 sm:gap-3">
+          <button
+            type="button"
+            onClick={() => setShowEditTrek(true)}
+            className="inline-flex items-center gap-1.5 px-3.5 min-h-[44px] py-2 text-sm font-medium text-[#0F172A] bg-white border border-[#E2E8F0] rounded-xl hover:bg-[#EEF2FF] hover:border-[#C7D2FE] whitespace-nowrap shrink-0 cursor-pointer trail-transition"
+          >
+            <Pencil className="w-4 h-4 text-[#4F46E5]" />
+            <span>Edit Trip</span>
+          </button>
           <button
             type="button"
             onClick={onBackToPortfolio}
@@ -235,7 +271,11 @@ export function ActiveTrekWorkspace({
           </button>
           <button
             type="button"
-            onClick={() => setShowFinishModal(true)}
+            onClick={() => {
+              setFinishSummary(trek.summary || '');
+              setFinishIsPublic(trek.isPublic);
+              setShowFinishModal(true);
+            }}
             className="inline-flex items-center gap-2 px-4 min-h-[44px] py-2 text-sm font-medium text-white bg-gradient-to-r from-[#5B21B6] via-[#4F46E5] to-[#2563EB] hover:from-[#4C1D95] hover:via-[#4338CA] hover:to-[#1D4ED8] rounded-xl shadow-sm shadow-indigo-500/15 whitespace-nowrap shrink-0 cursor-pointer trail-transition"
           >
             <CheckCircle2 className="w-4 h-4" />
@@ -298,6 +338,7 @@ export function ActiveTrekWorkspace({
               onPlaceSelect={(place) => {
                 setWpCoords(place.location);
                 setWpName(place.name);
+                void autoFetchElevation(place.location.lat, place.location.lng);
               }}
             />
 
@@ -319,7 +360,12 @@ export function ActiveTrekWorkspace({
                 {wpCoords && (
                   <button
                     type="button"
-                    onClick={() => setWpCoords(null)}
+                    onClick={() => {
+                      elevReqRef.current += 1;
+                      setElevLoading(false);
+                      setWpCoords(null);
+                      setWpElev('');
+                    }}
                     className="font-sans text-[#475569] hover:text-[#0F172A] cursor-pointer"
                   >
                     Clear
@@ -371,8 +417,12 @@ export function ActiveTrekWorkspace({
                 <input
                   type="number"
                   value={wpElev}
-                  onChange={(e) => setWpElev(e.target.value)}
-                  placeholder="Elev (m)"
+                  onChange={(e) => {
+                    elevReqRef.current += 1;
+                    setElevLoading(false);
+                    setWpElev(e.target.value);
+                  }}
+                  placeholder={elevLoading ? 'Fetching...' : 'Elev (m)'}
                   min={-500}
                   max={9000}
                   className="w-full px-3.5 min-h-[44px] py-2 text-base sm:text-sm font-mono tabular-nums border border-[#E2E8F0] rounded-xl focus:outline-none focus:border-[#4F46E5]"
@@ -504,20 +554,36 @@ export function ActiveTrekWorkspace({
                         {formatCoords(wp.lat, wp.lng)}
                       </p>
                     </div>
-                    {idx > 0 && (
+                    <div className="flex items-center gap-1 shrink-0">
                       <button
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation();
-                          void deleteWaypointFromActiveTrek(trek, waypoints, wp.id);
+                          setEditingWaypoint(wp);
                         }}
-                        aria-label="Remove waypoint"
-                        className="p-2 text-[#475569] hover:text-red-700 cursor-pointer"
+                        aria-label={`Edit ${wp.name}`}
+                        className="inline-flex items-center gap-1 px-2.5 min-h-[36px] text-xs font-medium text-[#4F46E5] bg-[#F6F7FB] border border-[#E2E8F0] rounded-lg hover:bg-[#EEF2FF] hover:border-[#C7D2FE] cursor-pointer trail-transition"
                       >
-                        <Trash2 className="w-4 h-4" />
+                        <Pencil className="w-3.5 h-3.5" />
+                        <span>Edit</span>
                       </button>
-                    )}
+                      {idx > 0 && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            void deleteWaypointFromActiveTrek(trek, waypoints, wp.id);
+                          }}
+                          aria-label="Remove waypoint"
+                          className="min-w-[36px] min-h-[36px] inline-flex items-center justify-center rounded-lg text-[#475569] hover:text-red-700 hover:bg-red-50 cursor-pointer"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
                   </div>
+
+                  <StopWeatherPreview lat={wp.lat} lng={wp.lng} elevationM={wp.elevationM} />
 
                   {wp.note && (
                     <p className="mt-2 text-sm text-[#334155] leading-relaxed">
@@ -567,6 +633,7 @@ export function ActiveTrekWorkspace({
               if (!wpName.trim()) {
                 setWpName(`Waypoint #${waypoints.length + 1}`);
               }
+              void autoFetchElevation(clicked.lat, clicked.lng);
             }}
             heightClassName="h-[340px] sm:h-[480px] lg:h-[660px]"
             onPhotoClick={openPhotoInLightbox}
@@ -686,6 +753,23 @@ export function ActiveTrekWorkspace({
           currentIndex={lightboxState.index}
           onNavigate={(index) => setLightboxState({ ...lightboxState, index })}
           onClose={() => setLightboxState(null)}
+        />
+      )}
+
+      {showEditTrek && (
+        <EditTrekModal
+          trek={trek}
+          waypoints={waypoints}
+          onClose={() => setShowEditTrek(false)}
+        />
+      )}
+
+      {editingWaypoint && (
+        <EditWaypointModal
+          trek={trek}
+          waypoints={waypoints}
+          waypoint={editingWaypoint}
+          onClose={() => setEditingWaypoint(null)}
         />
       )}
     </div>

@@ -1,5 +1,6 @@
-import { useMemo, useState } from 'react';
-import { Compass, Search, User as UserIcon } from 'lucide-react';
+import { useMemo, useRef, useState } from 'react';
+import { Compass, Search, User as UserIcon, X } from 'lucide-react';
+import { normalizeDifficulty } from '../lib/difficulty';
 import { formatDistance } from '../lib/geo';
 import type { PublicProfile, Trek, TrekDifficulty } from '../types/trail';
 import { TrekCard } from './TrekCard';
@@ -17,7 +18,7 @@ interface ExploreViewProps {
 
 const DIFFICULTIES: ('All' | TrekDifficulty)[] = [
   'All',
-  'Alpine',
+  'Extreme',
   'Challenging',
   'Moderate',
   'Easy',
@@ -35,22 +36,31 @@ export function ExploreView({
 }: ExploreViewProps) {
   const [difficultyFilter, setDifficultyFilter] = useState<'All' | TrekDifficulty>('All');
   const [searchQuery, setSearchQuery] = useState('');
+  const resultsRef = useRef<HTMLElement | null>(null);
 
   const filteredTreks = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase();
+    const raw = searchQuery.trim().toLowerCase();
+    const handleQuery = raw.replace(/^@+/, '');
     return publicTreks.filter((t) => {
-      if (difficultyFilter !== 'All' && t.difficulty !== difficultyFilter) {
+      if (difficultyFilter !== 'All' && normalizeDifficulty(t.difficulty) !== difficultyFilter) {
         return false;
       }
-      if (!q) return true;
+      if (!raw) return true;
       return (
-        t.title.toLowerCase().includes(q) ||
-        t.region.toLowerCase().includes(q) ||
-        t.ownerName.toLowerCase().includes(q) ||
-        t.ownerHandle.toLowerCase().includes(q)
+        t.title.toLowerCase().includes(raw) ||
+        t.region.toLowerCase().includes(raw) ||
+        t.startLocationName.toLowerCase().includes(raw) ||
+        t.endLocationName.toLowerCase().includes(raw) ||
+        t.ownerName.toLowerCase().includes(raw) ||
+        (handleQuery.length > 0 && t.ownerHandle.toLowerCase().includes(handleQuery))
       );
     });
   }, [publicTreks, difficultyFilter, searchQuery]);
+
+  const handleSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
 
   const totalDistanceKm = useMemo(
     () => publicTreks.reduce((sum, t) => sum + (t.distanceKm || 0), 0),
@@ -91,7 +101,62 @@ export function ExploreView({
   }, [publicProfiles, publicTreks]);
 
   return (
-    <div className="max-w-[1280px] mx-auto px-4 sm:px-6 py-6 sm:py-10 space-y-12 sm:space-y-16">
+    <div className="max-w-[1280px] mx-auto px-4 sm:px-6 py-6 sm:py-10 space-y-10 sm:space-y-14">
+      {/* Top Explore Search Bar */}
+      <section aria-label="Search public trips">
+        <form
+          onSubmit={handleSearchSubmit}
+          className="flex flex-col sm:flex-row sm:items-center gap-2.5 bg-white border border-[#E2E8F0] focus-within:border-[#4F46E5] focus-within:ring-2 focus-within:ring-[#4F46E5]/10 rounded-2xl p-2 shadow-xs trail-transition"
+        >
+          <div className="relative flex-1 flex items-center">
+            <Search className="w-4 h-4 text-[#4F46E5] absolute left-3.5 pointer-events-none shrink-0" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search public trips by location, trip title, or @explorer handle..."
+              aria-label="Search public trips by location, trip title, or explorer handle"
+              className="w-full min-h-[44px] pl-10 pr-10 py-2 text-base sm:text-sm text-[#0F172A] placeholder:text-[#64748B] bg-transparent focus:outline-none"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                aria-label="Clear search query"
+                className="absolute right-1 min-w-[40px] min-h-[40px] inline-flex items-center justify-center rounded-xl text-[#475569] hover:text-[#0F172A] hover:bg-[#EEF1FA] cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+          <button
+            type="submit"
+            className="min-h-[44px] px-5 py-2 text-sm font-medium text-white bg-gradient-to-r from-[#5B21B6] via-[#4F46E5] to-[#2563EB] hover:from-[#4C1D95] hover:via-[#4338CA] hover:to-[#1D4ED8] rounded-xl shadow-sm shadow-indigo-500/15 whitespace-nowrap shrink-0 cursor-pointer trail-transition"
+          >
+            Search Trips
+          </button>
+        </form>
+        {searchQuery.trim() && (
+          <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2 px-1 text-xs text-[#475569]">
+            <span>
+              Showing{' '}
+              <span className="font-mono font-semibold tabular-nums text-[#4F46E5]">
+                {filteredTreks.length}
+              </span>{' '}
+              {filteredTreks.length === 1 ? 'matching trip' : 'matching trips'} for &ldquo;
+              {searchQuery.trim()}&rdquo;
+            </span>
+            <button
+              type="button"
+              onClick={() => resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+              className="font-medium text-[#4F46E5] hover:underline cursor-pointer"
+            >
+              Jump to results
+            </button>
+          </div>
+        )}
+      </section>
+
       {/* Split-Screen Editorial Hero */}
       <section className="grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-8 items-stretch">
         <div className="lg:col-span-6 flex flex-col justify-between py-1 sm:py-2 lg:py-4 pr-0 lg:pr-4">
@@ -171,7 +236,7 @@ export function ExploreView({
       </section>
 
       {/* Public Expeditions Feed */}
-      <section id="public-expeditions" className="space-y-6">
+      <section ref={resultsRef} id="public-expeditions" className="space-y-6 scroll-mt-24">
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
           <div>
             <h2 className="text-2xl md:text-3xl font-semibold tracking-tight text-[#0F172A]">
@@ -182,35 +247,21 @@ export function ExploreView({
             </p>
           </div>
 
-          <div className="flex flex-col sm:flex-row sm:items-center gap-3 w-full md:w-auto">
-            <div className="relative w-full sm:w-56">
-              <Search className="w-4 h-4 text-[#475569] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Filter by trip, trail, or place..."
-                aria-label="Filter public trips"
-                className="min-h-[42px] pl-9 pr-3.5 py-2 text-base sm:text-xs bg-white border border-[#E2E8F0] rounded-lg focus:outline-none focus:border-[#4F46E5] w-full"
-              />
-            </div>
-
-            <div className="flex items-center gap-1 p-1 bg-[#EEF1FA] rounded-lg overflow-x-auto no-scrollbar max-w-full">
-              {DIFFICULTIES.map((diff) => (
-                <button
-                  key={diff}
-                  type="button"
-                  onClick={() => setDifficultyFilter(diff)}
-                  className={`min-h-[34px] px-3 py-1.5 text-xs font-medium rounded-md whitespace-nowrap shrink-0 cursor-pointer trail-transition ${
-                    difficultyFilter === diff
-                      ? 'bg-white text-[#4F46E5] shadow-sm'
-                      : 'text-[#475569] hover:text-[#0F172A]'
-                  }`}
-                >
-                  {diff}
-                </button>
-              ))}
-            </div>
+          <div className="flex items-center gap-1 p-1 bg-[#EEF1FA] rounded-lg overflow-x-auto no-scrollbar max-w-full">
+            {DIFFICULTIES.map((diff) => (
+              <button
+                key={diff}
+                type="button"
+                onClick={() => setDifficultyFilter(diff)}
+                className={`min-h-[34px] px-3 py-1.5 text-xs font-medium rounded-md whitespace-nowrap shrink-0 cursor-pointer trail-transition ${
+                  difficultyFilter === diff
+                    ? 'bg-white text-[#4F46E5] shadow-sm'
+                    : 'text-[#475569] hover:text-[#0F172A]'
+                }`}
+              >
+                {diff}
+              </button>
+            ))}
           </div>
         </div>
 
@@ -232,14 +283,14 @@ export function ExploreView({
             <h3 className="text-lg font-semibold text-[#0F172A] mb-1">
               {publicTreks.length === 0
                 ? 'Be the first traveler to publish a trip'
-                : 'No public trips match this filter'}
+                : 'No public trips match this search or filter'}
             </h3>
             <p className="text-sm text-[#475569] max-w-md mx-auto mb-5">
               {publicTreks.length === 0
                 ? 'Set your starting point, record locations and photo snaps as you hike, trek, or travel, and share your route publicly.'
-                : 'Try switching the difficulty filter or clearing your search query.'}
+                : 'Try searching a different location, trip title, or explorer handle, or reset your filters.'}
             </p>
-            {publicTreks.length === 0 && (
+            {publicTreks.length === 0 ? (
               <button
                 type="button"
                 disabled={!isSignedIn && isSigningIn}
@@ -251,6 +302,17 @@ export function ExploreView({
                   : isSigningIn
                     ? 'Signing in...'
                     : 'Sign in with Google'}
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchQuery('');
+                  setDifficultyFilter('All');
+                }}
+                className="min-h-[44px] px-4 py-2 text-sm font-medium text-[#4F46E5] bg-[#EEF2FF] hover:bg-[#E0E7FF] border border-[#C7D2FE] rounded-xl cursor-pointer trail-transition"
+              >
+                Reset Search &amp; Filters
               </button>
             )}
           </div>

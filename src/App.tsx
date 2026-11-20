@@ -1,9 +1,18 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { APIProvider } from '@vis.gl/react-google-maps';
-import { onAuthStateChanged, signInWithPopup, signOut, type User } from 'firebase/auth';
-import { Compass, FolderOpen, Navigation, Trophy, User as UserIcon, X } from 'lucide-react';
+import {
+  deleteUser,
+  onAuthStateChanged,
+  reauthenticateWithPopup,
+  signInWithPopup,
+  signOut,
+  type User,
+} from 'firebase/auth';
+import { Compass, FolderOpen, Navigation, ShieldCheck, Trophy, User as UserIcon, X } from 'lucide-react';
 import { ActiveTrekWorkspace } from './components/ActiveTrekWorkspace';
+import { AdminDashboardView } from './components/AdminDashboardView';
 import { ExploreView } from './components/ExploreView';
+import { PrivacyPolicyView } from './components/PrivacyPolicyView';
 import { ProfileView } from './components/ProfileView';
 import { OfflineIndicator, PWAInstallButton } from './components/PWAInstallButton';
 import { PublicPortfolioView } from './components/PublicPortfolioView';
@@ -13,19 +22,29 @@ import { TrekDetailView } from './components/TrekDetailView';
 import { auth, googleProvider } from './lib/firebase';
 import { initOfflineSyncBridge } from './lib/syncState';
 import {
+  deleteAllUserData,
   ensurePublicProfile,
   fetchTrekById,
   getPublicProfileByHandle,
   subscribeMyTreks,
+  subscribeMyUserControl,
   subscribePublicProfiles,
   subscribePublicTreks,
   subscribeTrekWaypoints,
 } from './services/trailService';
-import type { PublicProfile, Trek, Waypoint } from './types/trail';
+import {
+  isSuperAdminUser,
+  type PublicProfile,
+  type Trek,
+  type UserControl,
+  type Waypoint,
+} from './types/trail';
 
 type ViewMode =
   | { kind: 'explore' }
   | { kind: 'ranking' }
+  | { kind: 'privacy' }
+  | { kind: 'admin' }
   | { kind: 'active'; trekId: string }
   | { kind: 'trekDetail'; trekId: string }
   | { kind: 'publicPortfolio'; handle: string }
@@ -64,6 +83,12 @@ export default function App() {
   const [publicTreks, setPublicTreks] = useState<Trek[]>([]);
   const [publicProfiles, setPublicProfiles] = useState<PublicProfile[]>([]);
   const [myTreks, setMyTreks] = useState<Trek[]>([]);
+  const [myControl, setMyControl] = useState<UserControl | null>(null);
+
+  const isSuperAdmin = Boolean(
+    authUser && isSuperAdminUser(authUser.email, authUser.emailVerified)
+  );
+  const isSuspended = Boolean(!isSuperAdmin && myControl?.status === 'suspended');
 
   const [view, setView] = useState<ViewMode>({ kind: 'explore' });
   const [backTarget, setBackTarget] = useState<'explore' | 'ranking'>('explore');
@@ -82,7 +107,7 @@ export default function App() {
     return () => window.removeEventListener('gmp-quota-exceeded', onQuota);
   }, []);
 
-  // Read initial shareable URL params (?trek=..., ?trekker=..., or ?view=ranking)
+  // Read initial shareable URL params (?trek=..., ?trekker=..., ?view=ranking|privacy|admin)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const trekParam = params.get('trek');
@@ -94,6 +119,10 @@ export default function App() {
       setView({ kind: 'publicPortfolio', handle: trekkerParam });
     } else if (viewParam === 'ranking') {
       setView({ kind: 'ranking' });
+    } else if (viewParam === 'privacy') {
+      setView({ kind: 'privacy' });
+    } else if (viewParam === 'admin') {
+      setView({ kind: 'admin' });
     }
   }, []);
 
@@ -115,6 +144,10 @@ export default function App() {
       url.searchParams.set('trekker', nextView.handle);
     } else if (nextView.kind === 'ranking') {
       url.searchParams.set('view', 'ranking');
+    } else if (nextView.kind === 'privacy') {
+      url.searchParams.set('view', 'privacy');
+    } else if (nextView.kind === 'admin') {
+      url.searchParams.set('view', 'admin');
     }
     window.history.replaceState({}, '', url.toString());
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -136,6 +169,7 @@ export default function App() {
       } else {
         setMyProfile(null);
         setMyTreks([]);
+        setMyControl(null);
       }
     });
     return () => unsub();
@@ -165,11 +199,15 @@ export default function App() {
     };
   }, []);
 
-  // Subscribe to signed-in user's own treks
+  // Subscribe to signed-in user's own treks & moderation standing
   useEffect(() => {
     if (!authReady || !authUser) return;
-    const unsub = subscribeMyTreks(authUser.uid, setMyTreks);
-    return () => unsub();
+    const unsubTreks = subscribeMyTreks(authUser.uid, setMyTreks);
+    const unsubControl = subscribeMyUserControl(authUser.uid, setMyControl);
+    return () => {
+      unsubTreks();
+      unsubControl();
+    };
   }, [authReady, authUser]);
 
   // Resolve selected trek for detail or active workspace
@@ -224,10 +262,11 @@ export default function App() {
       selectedTrek.id,
       isOwnerViewing,
       authUser?.uid ?? null,
-      setActiveWaypoints
+      setActiveWaypoints,
+      isSuperAdmin
     );
     return () => unsub();
-  }, [selectedTrek, authUser]);
+  }, [selectedTrek, authUser, isSuperAdmin]);
 
   // Resolve public profile when viewing a trekker handle
   const viewedHandle = view.kind === 'publicPortfolio' ? view.handle : null;
@@ -310,6 +349,34 @@ export default function App() {
     navigateTo({ kind: 'explore' });
   };
 
+  const handleDeleteAccount = async () => {
+    const current = auth.currentUser;
+    if (!current) return;
+    const lastSignInMs = current.metadata.lastSignInTime
+      ? Date.parse(current.metadata.lastSignInTime)
+      : 0;
+    if (!lastSignInMs || Date.now() - lastSignInMs > 4 * 60 * 1000) {
+      await reauthenticateWithPopup(current, googleProvider);
+    }
+    await deleteAllUserData(current.uid);
+    await deleteUser(current);
+    setMyProfile(null);
+    setMyTreks([]);
+    navigateTo({ kind: 'explore' });
+  };
+
+  const handleTryOpenStartModal = () => {
+    if (isSuspended) {
+      setAuthError(
+        myControl?.moderationNote
+          ? `Your account is suspended: ${myControl.moderationNote}`
+          : 'Your account is currently suspended from creating or modifying trips.'
+      );
+      return;
+    }
+    setShowStartModal(true);
+  };
+
   const handleOpenActiveTab = () => {
     if (!authUser) {
       void handleSignIn();
@@ -318,7 +385,7 @@ export default function App() {
     if (latestActiveTrek) {
       navigateTo({ kind: 'active', trekId: latestActiveTrek.id });
     } else {
-      setShowStartModal(true);
+      handleTryOpenStartModal();
     }
   };
 
@@ -358,7 +425,7 @@ export default function App() {
               onClick={() => navigateTo({ kind: 'explore' })}
               className="text-lg font-bold tracking-tight text-[#0F172A] hover:text-[#4F46E5] whitespace-nowrap shrink-0 cursor-pointer trail-transition"
             >
-              Trailfolio
+              TripFolio
             </button>
 
             {/* Zone 2: 5 clean single-line navigation links */}
@@ -418,6 +485,19 @@ export default function App() {
               >
                 Profile
               </button>
+              {isSuperAdmin && (
+                <button
+                  type="button"
+                  onClick={() => navigateTo({ kind: 'admin' })}
+                  className={`hover:text-[#0F172A] whitespace-nowrap shrink-0 cursor-pointer py-1 border-b-2 trail-transition ${
+                    view.kind === 'admin'
+                      ? 'text-[#4F46E5] border-[#4F46E5]'
+                      : 'border-transparent'
+                  }`}
+                >
+                  Admin
+                </button>
+              )}
             </nav>
 
             {/* Zone 3: Install App (mobile/installable) + 1 primary action */}
@@ -426,7 +506,7 @@ export default function App() {
               {authUser ? (
                 <button
                   type="button"
-                  onClick={() => setShowStartModal(true)}
+                  onClick={handleTryOpenStartModal}
                   className="px-4 min-h-[40px] py-2 text-xs font-medium text-white bg-gradient-to-r from-[#5B21B6] via-[#4F46E5] to-[#2563EB] hover:from-[#4C1D95] hover:via-[#4338CA] hover:to-[#1D4ED8] rounded-xl shadow-sm shadow-indigo-500/15 whitespace-nowrap shrink-0 cursor-pointer trail-transition"
                 >
                   Start Trip
@@ -444,6 +524,16 @@ export default function App() {
             </div>
           </div>
         </header>
+
+        {isSuspended && (
+          <div className="max-w-[1280px] mx-auto w-full px-4 sm:px-6 pt-4">
+            <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900">
+              <strong className="font-semibold">Account Suspended:</strong> Creating and editing
+              trips or stops is currently disabled by an administrator.
+              {myControl?.moderationNote ? ` Reason: ${myControl.moderationNote}` : ''}
+            </div>
+          </div>
+        )}
 
         {authError && (
           <div className="max-w-[1280px] mx-auto w-full px-4 sm:px-6 pt-4">
@@ -468,7 +558,7 @@ export default function App() {
             publicProfiles={publicProfiles}
             isSignedIn={Boolean(authUser)}
             isSigningIn={isSigningIn}
-            onStartTrek={() => setShowStartModal(true)}
+            onStartTrek={handleTryOpenStartModal}
             onSignIn={() => void handleSignIn()}
             onOpenTrek={(trek) => navigateTo({ kind: 'trekDetail', trekId: trek.id }, 'explore')}
             onOpenTrekker={(handle) =>
@@ -486,6 +576,53 @@ export default function App() {
               navigateTo({ kind: 'publicPortfolio', handle }, 'ranking')
             }
           />
+        )}
+
+        {view.kind === 'privacy' && (
+          <PrivacyPolicyView onBack={() => navigateTo({ kind: 'explore' })} />
+        )}
+
+        {view.kind === 'admin' && isSuperAdmin && authUser && (
+          <AdminDashboardView
+            adminUid={authUser.uid}
+            adminEmail={authUser.email || ''}
+            publicProfiles={publicProfiles}
+            onBack={() => navigateTo({ kind: 'explore' })}
+            onOpenTrek={(trek) => navigateTo({ kind: 'trekDetail', trekId: trek.id }, 'explore')}
+            onOpenTrekker={(handle) =>
+              navigateTo({ kind: 'publicPortfolio', handle }, 'explore')
+            }
+          />
+        )}
+
+        {view.kind === 'admin' && !isSuperAdmin && (
+          <div className="max-w-lg mx-auto px-6 py-20 text-center space-y-4">
+            <h1 className="text-xl font-semibold text-[#0F172A]">Super Admin Access Required</h1>
+            <p className="text-sm text-[#475569]">
+              {authUser
+                ? 'This console is restricted to the authorized TripFolio Super Admin account.'
+                : 'Sign in with the Super Admin Google account to access user and content controls.'}
+            </p>
+            <div className="flex justify-center gap-3">
+              {!authUser && (
+                <button
+                  type="button"
+                  disabled={isSigningIn}
+                  onClick={() => void handleSignIn()}
+                  className="px-4 min-h-[40px] py-2 text-xs font-medium text-white bg-[#4F46E5] rounded-xl cursor-pointer"
+                >
+                  {isSigningIn ? 'Signing in...' : 'Sign In'}
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => navigateTo({ kind: 'explore' })}
+                className="px-4 min-h-[40px] py-2 text-xs font-medium text-[#475569] hover:text-[#0F172A] cursor-pointer"
+              >
+                Return to Explore
+              </button>
+            </div>
+          </div>
         )}
 
         {view.kind === 'active' && selectedTrek && (
@@ -515,10 +652,15 @@ export default function App() {
             trek={selectedTrek}
             waypoints={activeWaypoints}
             isOwner={Boolean(authUser && authUser.uid === selectedTrek.ownerId)}
+            isSuperAdmin={isSuperAdmin}
             onBack={() => navigateTo({ kind: backTarget })}
             onResumeActive={(trekId) => navigateTo({ kind: 'active', trekId })}
             onOpenTrekker={(handle) => navigateTo({ kind: 'publicPortfolio', handle })}
-            onDeleted={() => handleOpenMyPortfolio('portfolio')}
+            onDeleted={() =>
+              isSuperAdmin && authUser?.uid !== selectedTrek.ownerId
+                ? navigateTo({ kind: 'admin' })
+                : handleOpenMyPortfolio('portfolio')
+            }
           />
         )}
 
@@ -571,12 +713,13 @@ export default function App() {
             profile={myProfile}
             myTreks={myTreks}
             initialTab={view.tab}
-            onStartTrek={() => setShowStartModal(true)}
+            onStartTrek={handleTryOpenStartModal}
             onOpenTrek={(trek) => navigateTo({ kind: 'trekDetail', trekId: trek.id })}
             onResumeActive={(trekId) => navigateTo({ kind: 'active', trekId })}
             onPreviewPublic={(handle) => navigateTo({ kind: 'publicPortfolio', handle })}
             onProfileUpdated={setMyProfile}
             onSignOut={() => void handleSignOut()}
+            onDeleteAccount={handleDeleteAccount}
           />
         )}
 
@@ -600,7 +743,7 @@ export default function App() {
 
       <footer className="border-t border-[#E2E8F0] mt-16">
         <div className="max-w-[1360px] mx-auto px-4 sm:px-6 py-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-[#475569]">
-          <span>Trailfolio · Trip Portfolios for Trekkers, Hikers &amp; Travelers</span>
+          <span>TripFolio · Trip Portfolios for Trekkers, Hikers &amp; Travelers</span>
           <div className="flex items-center gap-4">
             <button
               type="button"
@@ -617,6 +760,13 @@ export default function App() {
               Ranking
             </button>
             <PWAInstallButton variant="footer" />
+            <button
+              type="button"
+              onClick={() => navigateTo({ kind: 'privacy' })}
+              className="hover:text-[#0F172A] cursor-pointer"
+            >
+              Privacy Policy
+            </button>
             <a
               href="https://cloud.google.com/maps-platform/terms?utm_campaign=gmp_mcp_codeassist_v1_aistudio"
               target="_blank"
@@ -632,7 +782,9 @@ export default function App() {
       {/* Mobile Bottom Tab Bar — Thumb-zone navigation */}
       <nav
         aria-label="Mobile Navigation"
-        className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-[#E2E8F0] grid grid-cols-5"
+        className={`md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-[#E2E8F0] grid ${
+          isSuperAdmin ? 'grid-cols-6' : 'grid-cols-5'
+        }`}
       >
         <button
           type="button"
@@ -688,6 +840,18 @@ export default function App() {
           <UserIcon className="w-4 h-4" />
           <span>Profile</span>
         </button>
+        {isSuperAdmin && (
+          <button
+            type="button"
+            onClick={() => navigateTo({ kind: 'admin' })}
+            className={`flex flex-col items-center justify-center gap-0.5 min-h-[54px] py-1.5 text-[11px] font-medium cursor-pointer trail-transition ${
+              view.kind === 'admin' ? 'text-[#4F46E5]' : 'text-[#475569]'
+            }`}
+          >
+            <ShieldCheck className="w-4 h-4" />
+            <span>Admin</span>
+          </button>
+        )}
       </nav>
 
       {showStartModal && myProfile && (

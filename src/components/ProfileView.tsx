@@ -5,6 +5,7 @@ import {
   LogOut,
   Plus,
   Share2,
+  Trash2,
   Upload,
   User as UserIcon,
 } from 'lucide-react';
@@ -23,6 +24,7 @@ interface ProfileViewProps {
   onPreviewPublic: (handle: string) => void;
   onProfileUpdated: (updated: PublicProfile) => void;
   onSignOut: () => void;
+  onDeleteAccount: () => Promise<void>;
 }
 
 export function ProfileView({
@@ -35,6 +37,7 @@ export function ProfileView({
   onPreviewPublic,
   onProfileUpdated,
   onSignOut,
+  onDeleteAccount,
 }: ProfileViewProps) {
   const [tab, setTab] = useState<'portfolio' | 'settings'>(initialTab);
   const [filter, setFilter] = useState<'all' | 'active' | 'completed' | 'private'>('all');
@@ -48,6 +51,9 @@ export function ProfileView({
   const [savedNotice, setSavedNotice] = useState(false);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [confirmDeleteAccount, setConfirmDeleteAccount] = useState(false);
+  const [deletingAccount, setDeletingAccount] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   useEffect(() => {
     setTab(initialTab);
@@ -123,6 +129,17 @@ export function ProfileView({
       window.setTimeout(() => setCopied(false), 2200);
     } catch {
       // Ignore clipboard failure
+    }
+  };
+
+  const handleConfirmAccountDeletion = async () => {
+    setDeletingAccount(true);
+    setDeleteError(null);
+    try {
+      await onDeleteAccount();
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : 'Unable to delete account.');
+      setDeletingAccount(false);
     }
   };
 
@@ -387,6 +404,57 @@ export function ProfileView({
             </button>
             {savedNotice && (
               <span className="text-xs text-[#4F46E5] font-medium">Profile saved.</span>
+            )}
+          </div>
+
+          <div className="pt-6 border-t border-[#E2E8F0] space-y-3">
+            <div>
+              <h3 className="text-sm font-semibold text-[#0F172A]">Delete Account &amp; Data</h3>
+              <p className="text-xs text-[#475569] mt-0.5">
+                Permanently remove your public profile, all recorded trips, stops, and snaps.
+              </p>
+            </div>
+
+            {deleteError && (
+              <p className="text-xs text-red-700 bg-red-50 border border-red-200 rounded-xl px-3 py-2">
+                {deleteError}
+              </p>
+            )}
+
+            {!confirmDeleteAccount ? (
+              <button
+                type="button"
+                onClick={() => setConfirmDeleteAccount(true)}
+                className="inline-flex items-center gap-1.5 px-4 min-h-[40px] py-2 text-xs font-medium text-red-700 bg-white border border-red-200 rounded-xl hover:bg-red-50 cursor-pointer trail-transition"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Delete Account</span>
+              </button>
+            ) : (
+              <div className="p-4 rounded-xl bg-red-50/70 border border-red-200 space-y-3">
+                <p className="text-xs text-red-900 font-medium">
+                  This permanently deletes your explorer profile and all {myTreks.length} trips.
+                  This action cannot be undone.
+                </p>
+                <div className="flex flex-wrap items-center gap-2.5">
+                  <button
+                    type="button"
+                    disabled={deletingAccount}
+                    onClick={() => void handleConfirmAccountDeletion()}
+                    className="px-4 min-h-[40px] py-2 text-xs font-medium text-white bg-red-700 hover:bg-red-800 rounded-xl disabled:opacity-50 cursor-pointer"
+                  >
+                    {deletingAccount ? 'Deleting Account...' : 'Permanently Delete Everything'}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={deletingAccount}
+                    onClick={() => setConfirmDeleteAccount(false)}
+                    className="px-3 min-h-[40px] py-2 text-xs font-medium text-[#475569] hover:text-[#0F172A] cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
             )}
           </div>
         </form>

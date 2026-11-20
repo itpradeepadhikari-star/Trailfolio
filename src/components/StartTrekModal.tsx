@@ -1,7 +1,9 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Camera, Compass, LocateFixed, Upload, X } from 'lucide-react';
+import { DIFFICULTY_CONFIG, DIFFICULTY_LEVELS } from '../lib/difficulty';
 import { compressImageToDataUrl, formatCoords } from '../lib/geo';
 import { startTrek } from '../services/trailService';
+import { fetchCoordinateElevation } from '../services/weatherService';
 import {
   BLUEPRINT_LIMITS,
   type LatLngLiteral,
@@ -17,8 +19,6 @@ interface StartTrekModalProps {
   onClose: () => void;
   onCreated: (trekId: string) => void;
 }
-
-const DIFFICULTIES: TrekDifficulty[] = ['Easy', 'Moderate', 'Challenging', 'Alpine'];
 
 export function StartTrekModal({ profile, onClose, onCreated }: StartTrekModalProps) {
   const [title, setTitle] = useState('');
@@ -36,7 +36,22 @@ export function StartTrekModal({ profile, onClose, onCreated }: StartTrekModalPr
   const [manualLat, setManualLat] = useState('');
   const [manualLng, setManualLng] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [elevLoading, setElevLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const elevReqRef = useRef(0);
+
+  const autoFetchElevation = async (lat: number, lng: number) => {
+    const reqId = ++elevReqRef.current;
+    setElevLoading(true);
+    setElevationM('');
+    const elev = await fetchCoordinateElevation(lat, lng);
+    if (elevReqRef.current === reqId) {
+      setElevLoading(false);
+      if (elev !== null) {
+        setElevationM(String(elev));
+      }
+    }
+  };
 
   const handleApplyManualCoords = () => {
     const lat = Number(manualLat);
@@ -45,12 +60,15 @@ export function StartTrekModal({ profile, onClose, onCreated }: StartTrekModalPr
       setError('Enter valid latitude (-90 to 90) and longitude (-180 to 180).');
       return;
     }
+    const roundedLat = Number(lat.toFixed(6));
+    const roundedLng = Number(lng.toFixed(6));
     setError(null);
-    setCoords({ lat: Number(lat.toFixed(6)), lng: Number(lng.toFixed(6)) });
+    setCoords({ lat: roundedLat, lng: roundedLng });
     if (!startLocationName.trim()) {
       setStartLocationName('Manual Start Pin');
     }
     setShowManualCoords(false);
+    void autoFetchElevation(roundedLat, roundedLng);
   };
 
   const handleUseGps = () => {
@@ -62,12 +80,15 @@ export function StartTrekModal({ profile, onClose, onCreated }: StartTrekModalPr
     setError(null);
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        setCoords({
-          lat: Number(pos.coords.latitude.toFixed(6)),
-          lng: Number(pos.coords.longitude.toFixed(6)),
-        });
+        const lat = Number(pos.coords.latitude.toFixed(6));
+        const lng = Number(pos.coords.longitude.toFixed(6));
+        setCoords({ lat, lng });
         if (pos.coords.altitude !== null && Number.isFinite(pos.coords.altitude)) {
+          elevReqRef.current += 1;
+          setElevLoading(false);
           setElevationM(String(Math.round(pos.coords.altitude)));
+        } else {
+          void autoFetchElevation(lat, lng);
         }
         if (!startLocationName.trim()) {
           setStartLocationName('GPS Start Location');
@@ -178,37 +199,52 @@ export function StartTrekModal({ profile, onClose, onCreated }: StartTrekModalPr
               />
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-medium text-[#0F172A] mb-1.5">
-                  Region / Destination
-                </label>
-                <input
-                  type="text"
-                  value={region}
-                  onChange={(e) => setRegion(e.target.value)}
-                  maxLength={BLUEPRINT_LIMITS.REGION_MAX}
-                  placeholder="e.g., Annapurna, Nepal or Kyoto"
-                  className="w-full px-3.5 min-h-[44px] py-2.5 text-base sm:text-sm border border-[#E2E8F0] rounded-xl focus:outline-none focus:border-[#4F46E5]"
-                  required
-                />
-              </div>
+            <div>
+              <label className="block text-xs font-medium text-[#0F172A] mb-1.5">
+                Region / Destination
+              </label>
+              <input
+                type="text"
+                value={region}
+                onChange={(e) => setRegion(e.target.value)}
+                maxLength={BLUEPRINT_LIMITS.REGION_MAX}
+                placeholder="e.g., Annapurna, Nepal or Kyoto"
+                className="w-full px-3.5 min-h-[44px] py-2.5 text-base sm:text-sm border border-[#E2E8F0] rounded-xl focus:outline-none focus:border-[#4F46E5]"
+                required
+              />
+            </div>
 
-              <div>
-                <label className="block text-xs font-medium text-[#0F172A] mb-1.5">
-                  Difficulty / Pace
-                </label>
-                <select
-                  value={difficulty}
-                  onChange={(e) => setDifficulty(e.target.value as TrekDifficulty)}
-                  className="w-full px-3.5 min-h-[44px] py-2.5 text-base sm:text-sm border border-[#E2E8F0] rounded-xl bg-white focus:outline-none focus:border-[#4F46E5]"
-                >
-                  {DIFFICULTIES.map((d) => (
-                    <option key={d} value={d}>
-                      {d}
-                    </option>
-                  ))}
-                </select>
+            <div>
+              <label className="block text-xs font-medium text-[#0F172A] mb-1.5">
+                Difficulty Level
+              </label>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2" role="radiogroup" aria-label="Difficulty Level">
+                {DIFFICULTY_LEVELS.map((level) => {
+                  const cfg = DIFFICULTY_CONFIG[level];
+                  const active = difficulty === level;
+                  return (
+                    <button
+                      key={level}
+                      type="button"
+                      role="radio"
+                      aria-checked={active}
+                      onClick={() => setDifficulty(level)}
+                      className={`text-left px-3 py-2.5 min-h-[54px] rounded-xl border cursor-pointer trail-transition ${
+                        active
+                          ? `${cfg.activeButtonClass} shadow-xs`
+                          : 'bg-white text-[#475569] border-[#E2E8F0] hover:border-[#C7D2FE] hover:text-[#0F172A]'
+                      }`}
+                    >
+                      <span className="flex items-center gap-1.5 text-xs font-semibold">
+                        <span className={`w-2 h-2 rounded-xs shrink-0 ${cfg.dotClass}`} aria-hidden="true" />
+                        <span>{level}</span>
+                      </span>
+                      <span className="block text-[10px] leading-tight text-[#475569] mt-0.5">
+                        {cfg.shortHint}
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
@@ -233,8 +269,12 @@ export function StartTrekModal({ profile, onClose, onCreated }: StartTrekModalPr
                 <input
                   type="number"
                   value={elevationM}
-                  onChange={(e) => setElevationM(e.target.value)}
-                  placeholder="1770"
+                  onChange={(e) => {
+                    elevReqRef.current += 1;
+                    setElevLoading(false);
+                    setElevationM(e.target.value);
+                  }}
+                  placeholder={elevLoading ? 'Fetching...' : '1770'}
                   min={-500}
                   max={9000}
                   className="w-full px-3.5 min-h-[44px] py-2.5 text-base sm:text-sm font-mono tabular-nums border border-[#E2E8F0] rounded-xl focus:outline-none focus:border-[#4F46E5]"
@@ -340,6 +380,7 @@ export function StartTrekModal({ profile, onClose, onCreated }: StartTrekModalPr
                     const parts = place.formattedAddress.split(',').map((s) => s.trim());
                     setRegion(parts.slice(-2).join(', '));
                   }
+                  void autoFetchElevation(place.location.lat, place.location.lng);
                 }}
               />
               <button
@@ -363,6 +404,7 @@ export function StartTrekModal({ profile, onClose, onCreated }: StartTrekModalPr
                 if (!startLocationName.trim()) {
                   setStartLocationName('Start Pin');
                 }
+                void autoFetchElevation(clicked.lat, clicked.lng);
               }}
               heightClassName="h-[240px] sm:h-[310px]"
             />

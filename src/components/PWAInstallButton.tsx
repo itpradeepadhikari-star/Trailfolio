@@ -62,7 +62,7 @@ export function PWAInstallButton({ variant = 'header' }: PWAInstallButtonProps) 
             <div className="sm:hidden w-10 h-1 rounded-full bg-[#CBD5E1] mx-auto" />
             <div className="flex items-start justify-between gap-3">
               <div>
-                <p className="text-xs font-semibold text-[#4F46E5]">Install Trailfolio</p>
+                <p className="text-xs font-semibold text-[#4F46E5]">Install TripFolio</p>
                 <h3 className="text-lg font-semibold text-[#0F172A]">
                   {isIOS ? 'Install on iPhone / iPad' : 'Install on Android Phone'}
                 </h3>
@@ -106,13 +106,13 @@ export function PWAInstallButton({ variant = 'header' }: PWAInstallButtonProps) 
                 </div>
                 <div className="p-3.5 rounded-xl bg-[#EEF2FF]/70 border border-[#C7D2FE] space-y-1.5">
                   <p className="text-xs font-semibold text-[#0F172A]">
-                    Need an installable .APK file?
+                    Need an Android .APK or Google Play .AAB?
                   </p>
                   <p className="text-xs leading-relaxed">
-                    Deploy this site to Netlify, paste your live URL into{' '}
-                    <strong className="text-[#0F172A]">pwabuilder.com</strong>, and download the
-                    generated Android <strong className="text-[#0F172A]">.apk</strong> package with
-                    one click.
+                    Deploy this site over HTTPS, paste your live URL into{' '}
+                    <strong className="text-[#0F172A]">pwabuilder.com</strong> (or run Bubblewrap),
+                    and download a signed Android <strong className="text-[#0F172A]">.aab</strong>{' '}
+                    bundle for Google Play Store upload.
                   </p>
                 </div>
               </div>

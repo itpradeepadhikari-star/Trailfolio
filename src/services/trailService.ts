@@ -1,6 +1,7 @@
 import type { User } from 'firebase/auth';
 import {
   collection,
+  deleteDoc,
   doc,
   getDoc,
   getDocFromCache,
@@ -23,6 +24,9 @@ import {
   type PublicProfile,
   type Trek,
   type TrekDifficulty,
+  type UserControl,
+  type UserControlRole,
+  type UserControlStatus,
   type Waypoint,
   type WaypointCategory,
 } from '../types/trail';
@@ -333,11 +337,13 @@ export function subscribeTrekWaypoints(
   trekId: string,
   isOwnerViewing: boolean,
   ownerUid: string | null,
-  onData: (waypoints: Waypoint[]) => void
+  onData: (waypoints: Waypoint[]) => void,
+  isSuperAdminViewing = false
 ): Unsubscribe {
   const path = `treks/${trekId}/waypoints`;
-  const q =
-    isOwnerViewing && ownerUid
+  const q = isSuperAdminViewing
+    ? collection(db, 'treks', trekId, 'waypoints')
+    : isOwnerViewing && ownerUid
       ? query(collection(db, 'treks', trekId, 'waypoints'), where('ownerId', '==', ownerUid))
       : query(collection(db, 'treks', trekId, 'waypoints'), where('trekIsPublic', '==', true));
 
@@ -370,6 +376,110 @@ export async function fetchPublicTrekWaypoints(trekId: string): Promise<Waypoint
       .sort((a, b) => a.orderIndex - b.orderIndex);
   } catch (error) {
     handleFirestoreError(error, OperationType.LIST, path);
+  }
+}
+
+export async function adminFetchTrekWaypoints(trekId: string): Promise<Waypoint[]> {
+  const path = `treks/${trekId}/waypoints`;
+  try {
+    const snap = await getDocs(collection(db, 'treks', trekId, 'waypoints'));
+    return snap.docs
+      .map((d) => d.data() as Waypoint)
+      .sort((a, b) => a.orderIndex - b.orderIndex);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.LIST, path);
+  }
+}
+
+export function subscribeAllTreksForAdmin(onData: (treks: Trek[]) => void): Unsubscribe {
+  const path = 'treks';
+  return onSnapshot(
+    collection(db, path),
+    (snap) => {
+      const items = snap.docs
+        .map((d) => d.data() as Trek)
+        .sort((a, b) => {
+          const aTime = a.updatedAt?.toMillis?.() ?? 0;
+          const bTime = b.updatedAt?.toMillis?.() ?? 0;
+          return bTime - aTime;
+        });
+      onData(items);
+    },
+    (error) => {
+      handleFirestoreError(error, OperationType.LIST, path);
+    }
+  );
+}
+
+export function subscribeAllUserControlsForAdmin(
+  onData: (controls: UserControl[]) => void
+): Unsubscribe {
+  const path = 'userControls';
+  return onSnapshot(
+    collection(db, path),
+    (snap) => {
+      const items = snap.docs.map((d) => d.data() as UserControl);
+      onData(items);
+    },
+    (error) => {
+      handleFirestoreError(error, OperationType.LIST, path);
+    }
+  );
+}
+
+export function subscribeMyUserControl(
+  uid: string,
+  onData: (control: UserControl | null) => void
+): Unsubscribe {
+  const path = `userControls/${uid}`;
+  return onSnapshot(
+    doc(db, 'userControls', uid),
+    (snap) => {
+      onData(snap.exists() ? (snap.data() as UserControl) : null);
+    },
+    (error) => {
+      if (isOfflineUnavailableError(error)) {
+        return;
+      }
+      handleFirestoreError(error, OperationType.GET, path);
+    }
+  );
+}
+
+export async function upsertUserControl(params: {
+  targetUid: string;
+  status: UserControlStatus;
+  role: UserControlRole;
+  moderationNote: string;
+  adminUid: string;
+}): Promise<void> {
+  const path = `userControls/${params.targetUid}`;
+  const ref = doc(db, 'userControls', params.targetUid);
+  const cleanNote = clampString(params.moderationNote, 300);
+
+  try {
+    const existingSnap = await getDoc(ref);
+    if (existingSnap.exists()) {
+      await updateDoc(ref, {
+        status: params.status,
+        role: params.role,
+        moderationNote: cleanNote,
+        updatedBy: params.adminUid,
+        updatedAt: serverTimestamp(),
+      });
+    } else {
+      await setDoc(ref, {
+        uid: params.targetUid,
+        status: params.status,
+        role: params.role,
+        moderationNote: cleanNote,
+        updatedBy: params.adminUid,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+    }
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path);
   }
 }
 
@@ -527,39 +637,71 @@ export async function addWaypointToTrek(params: {
     await commitWithOfflineQueue(batch.commit(), (error) =>
       handleFirestoreError(error, OperationType.WRITE, path)
     );
+    if (params.trek.status === 'completed') {
+      await recalculateOwnerStats(params.trek.ownerId);
+    }
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, path);
   }
 }
 
-export async function updateActiveWaypoint(params: {
+export async function updateWaypointDetails(params: {
   trek: Trek;
   existingWaypoints: Waypoint[];
   waypoint: Waypoint;
   name: string;
   category: WaypointCategory;
+  lat: number;
+  lng: number;
   elevationM: number | null;
   note: string;
   photos: string[];
 }): Promise<void> {
   const path = `treks/${params.trek.id}/waypoints/${params.waypoint.id}`;
+  const cleanName =
+    clampString(params.name, BLUEPRINT_LIMITS.WAYPOINT_NAME_MAX) ||
+    params.waypoint.name ||
+    'Waypoint';
+  const cleanNote = clampString(params.note, BLUEPRINT_LIMITS.NOTE_MAX);
+  const cleanElev =
+    params.elevationM !== null && Number.isFinite(params.elevationM) ? params.elevationM : null;
   const sanitizedPhotos = params.photos
     .slice(0, BLUEPRINT_LIMITS.PHOTOS_PER_WAYPOINT_MAX)
     .map((p) => p.slice(0, BLUEPRINT_LIMITS.PHOTO_MAX_CHARS));
 
-  const updatedList = params.existingWaypoints.map((w) =>
-    w.id === params.waypoint.id
-      ? {
-          ...w,
-          name: clampString(params.name, BLUEPRINT_LIMITS.WAYPOINT_NAME_MAX),
-          category: params.category,
-          elevationM: params.elevationM,
-          note: clampString(params.note, BLUEPRINT_LIMITS.NOTE_MAX),
-          photos: sanitizedPhotos,
-        }
-      : w
-  );
+  const updatedList = params.existingWaypoints
+    .map((w) =>
+      w.id === params.waypoint.id
+        ? {
+            ...w,
+            name: cleanName,
+            category: params.category,
+            lat: params.lat,
+            lng: params.lng,
+            elevationM: cleanElev,
+            note: cleanNote,
+            photos: sanitizedPhotos,
+          }
+        : w
+    )
+    .sort((a, b) => a.orderIndex - b.orderIndex);
 
+  const first = updatedList[0];
+  const last = updatedList[updatedList.length - 1];
+  const startLocationName = clampString(
+    first ? first.name : params.trek.startLocationName,
+    BLUEPRINT_LIMITS.LOCATION_NAME_MAX
+  );
+  const startLat = first ? first.lat : params.trek.startLat;
+  const startLng = first ? first.lng : params.trek.startLng;
+  const endLocationName = clampString(
+    last ? last.name : startLocationName,
+    BLUEPRINT_LIMITS.LOCATION_NAME_MAX
+  );
+  const endLat = last ? last.lat : startLat;
+  const endLng = last ? last.lng : startLng;
+
+  const distanceKm = calculatePathDistanceKm(updatedList.map((w) => ({ lat: w.lat, lng: w.lng })));
   const photoCount = updatedList.reduce((acc, w) => acc + (w.photos?.length || 0), 0);
   const maxElevationM = updatedList.reduce((max, w) => {
     if (w.elevationM !== null && Number.isFinite(w.elevationM)) {
@@ -567,26 +709,110 @@ export async function updateActiveWaypoint(params: {
     }
     return max;
   }, 0);
+
+  const prevWpHadCover =
+    Boolean(params.trek.coverPhotoDataUrl) &&
+    (params.waypoint.photos || []).includes(params.trek.coverPhotoDataUrl);
+  const newWpHasCover =
+    Boolean(params.trek.coverPhotoDataUrl) && sanitizedPhotos.includes(params.trek.coverPhotoDataUrl);
   const firstAvailablePhoto =
     updatedList.find((w) => w.photos && w.photos.length > 0)?.photos[0] || '';
+  let coverPhotoDataUrl = params.trek.coverPhotoDataUrl || '';
+  if (!coverPhotoDataUrl || (prevWpHadCover && !newWpHasCover)) {
+    coverPhotoDataUrl = firstAvailablePhoto;
+  }
 
   try {
     const batch = writeBatch(db);
     batch.update(doc(db, 'treks', params.trek.id, 'waypoints', params.waypoint.id), {
-      name: clampString(params.name, BLUEPRINT_LIMITS.WAYPOINT_NAME_MAX),
+      name: cleanName,
       category: params.category,
-      elevationM: params.elevationM !== null && Number.isFinite(params.elevationM) ? params.elevationM : null,
-      note: clampString(params.note, BLUEPRINT_LIMITS.NOTE_MAX),
+      lat: params.lat,
+      lng: params.lng,
+      elevationM: cleanElev,
+      note: cleanNote,
       photos: sanitizedPhotos,
     });
     batch.update(doc(db, 'treks', params.trek.id), {
-      photoCount,
+      startLocationName,
+      startLat,
+      startLng,
+      endLocationName,
+      endLat,
+      endLng,
+      distanceKm,
       maxElevationM,
-      coverPhotoDataUrl: firstAvailablePhoto,
+      photoCount,
+      coverPhotoDataUrl: coverPhotoDataUrl.slice(0, BLUEPRINT_LIMITS.PHOTO_MAX_CHARS),
       updatedAt: serverTimestamp(),
     });
     await commitWithOfflineQueue(batch.commit(), (error) =>
       handleFirestoreError(error, OperationType.UPDATE, path)
+    );
+    if (params.trek.status === 'completed') {
+      await recalculateOwnerStats(params.trek.ownerId);
+    }
+  } catch (error) {
+    handleFirestoreError(error, OperationType.UPDATE, path);
+  }
+}
+
+export async function updateTrekDetails(params: {
+  trek: Trek;
+  waypoints: Waypoint[];
+  title: string;
+  region: string;
+  difficulty: TrekDifficulty;
+  summary: string;
+  isPublic: boolean;
+  coverPhotoDataUrl: string;
+}): Promise<void> {
+  const path = `treks/${params.trek.id}`;
+  const cleanTitle = clampString(params.title, BLUEPRINT_LIMITS.TREK_TITLE_MAX) || params.trek.title;
+  const cleanRegion = clampString(params.region, BLUEPRINT_LIMITS.REGION_MAX) || params.trek.region;
+  const cleanSummary = clampString(params.summary, BLUEPRINT_LIMITS.SUMMARY_MAX);
+  const cleanCover = params.coverPhotoDataUrl.slice(0, BLUEPRINT_LIMITS.PHOTO_MAX_CHARS);
+
+  try {
+    const batch = writeBatch(db);
+    batch.update(doc(db, 'treks', params.trek.id), {
+      title: cleanTitle,
+      region: cleanRegion,
+      difficulty: params.difficulty,
+      summary: cleanSummary,
+      isPublic: params.isPublic,
+      coverPhotoDataUrl: cleanCover,
+      updatedAt: serverTimestamp(),
+    });
+
+    if (params.isPublic !== params.trek.isPublic) {
+      for (const wp of params.waypoints) {
+        batch.update(doc(db, 'treks', params.trek.id, 'waypoints', wp.id), {
+          trekIsPublic: params.isPublic,
+        });
+      }
+    }
+
+    await commitWithOfflineQueue(batch.commit(), (error) =>
+      handleFirestoreError(error, OperationType.UPDATE, path)
+    );
+  } catch (error) {
+    handleFirestoreError(error, OperationType.UPDATE, path);
+  }
+}
+
+export async function updateTrekDifficulty(
+  trekId: string,
+  difficulty: TrekDifficulty
+): Promise<void> {
+  const path = `treks/${trekId}`;
+  try {
+    await commitWithOfflineQueue(
+      updateDoc(doc(db, 'treks', trekId), {
+        difficulty,
+        updatedAt: serverTimestamp(),
+      }),
+      (error) => handleFirestoreError(error, OperationType.UPDATE, path)
     );
   } catch (error) {
     handleFirestoreError(error, OperationType.UPDATE, path);
@@ -727,7 +953,11 @@ export async function deleteWaypointFromActiveTrek(
   waypointId: string
 ): Promise<void> {
   const path = `treks/${trek.id}/waypoints/${waypointId}`;
-  const remaining = waypoints.filter((w) => w.id !== waypointId);
+  const deletedWp = waypoints.find((w) => w.id === waypointId);
+  const remaining = waypoints
+    .filter((w) => w.id !== waypointId)
+    .sort((a, b) => a.orderIndex - b.orderIndex);
+  const first = remaining[0];
   const last = remaining[remaining.length - 1];
   const distanceKm = calculatePathDistanceKm(remaining.map((w) => ({ lat: w.lat, lng: w.lng })));
   const maxElevationM = remaining.reduce(
@@ -735,12 +965,19 @@ export async function deleteWaypointFromActiveTrek(
     0
   );
   const photoCount = remaining.reduce((acc, w) => acc + (w.photos?.length || 0), 0);
-  const coverPhotoDataUrl = remaining.find((w) => w.photos?.length > 0)?.photos[0] || '';
+  const deletedHadCover =
+    Boolean(trek.coverPhotoDataUrl) && (deletedWp?.photos || []).includes(trek.coverPhotoDataUrl);
+  const fallbackCover = remaining.find((w) => w.photos?.length > 0)?.photos[0] || '';
+  const coverPhotoDataUrl =
+    !trek.coverPhotoDataUrl || deletedHadCover ? fallbackCover : trek.coverPhotoDataUrl;
 
   try {
     const batch = writeBatch(db);
     batch.delete(doc(db, 'treks', trek.id, 'waypoints', waypointId));
     batch.update(doc(db, 'treks', trek.id), {
+      startLocationName: first ? first.name : trek.startLocationName,
+      startLat: first ? first.lat : trek.startLat,
+      startLng: first ? first.lng : trek.startLng,
       endLocationName: last ? last.name : trek.startLocationName,
       endLat: last ? last.lat : trek.startLat,
       endLng: last ? last.lng : trek.startLng,
@@ -754,7 +991,54 @@ export async function deleteWaypointFromActiveTrek(
     await commitWithOfflineQueue(batch.commit(), (error) =>
       handleFirestoreError(error, OperationType.DELETE, path)
     );
+    if (trek.status === 'completed') {
+      await recalculateOwnerStats(trek.ownerId);
+    }
   } catch (error) {
     handleFirestoreError(error, OperationType.DELETE, path);
+  }
+}
+
+export async function deleteAllUserData(ownerUid: string): Promise<void> {
+  const profilePath = `publicProfiles/${ownerUid}`;
+  try {
+    const trekSnap = await getDocs(
+      query(collection(db, 'treks'), where('ownerId', '==', ownerUid))
+    );
+
+    for (const trekDoc of trekSnap.docs) {
+      const trekId = trekDoc.id;
+      const wpSnap = await getDocs(
+        query(collection(db, 'treks', trekId, 'waypoints'), where('ownerId', '==', ownerUid))
+      );
+      const batch = writeBatch(db);
+      wpSnap.docs.forEach((wpDoc) => {
+        batch.delete(wpDoc.ref);
+      });
+      batch.delete(trekDoc.ref);
+      await batch.commit();
+    }
+
+    await deleteDoc(doc(db, 'publicProfiles', ownerUid));
+    try {
+      localStorage.removeItem(getProfileCacheKey(ownerUid));
+    } catch {
+      // Ignore storage removal errors
+    }
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, profilePath);
+  }
+}
+
+export async function adminDeleteUserAndData(targetUid: string): Promise<void> {
+  await deleteAllUserData(targetUid);
+  const controlRef = doc(db, 'userControls', targetUid);
+  try {
+    const controlSnap = await getDoc(controlRef);
+    if (controlSnap.exists()) {
+      await deleteDoc(controlRef);
+    }
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, `userControls/${targetUid}`);
   }
 }
